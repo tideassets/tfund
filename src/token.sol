@@ -6,7 +6,7 @@
 pragma solidity ^0.8.20;
 
 import "@layerzerolabs/solidity-examples/contracts/token/oft/v2/OFTV2.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract Token is OFTV2, Pausable {
   // ---- Auth ----
