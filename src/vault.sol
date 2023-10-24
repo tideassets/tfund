@@ -252,7 +252,7 @@ contract Vault is ReentrancyGuard, Auth {
         address to,
         uint256 amt,
         bool useFee
-    ) internal nonReentrant whenNotPaused returns (uint256) {
+    ) internal returns (uint256) {
         require(asss[ass].pos > 0, "Vat/asset not in whitelist");
 
         IERC20 token = IERC20(ass);
