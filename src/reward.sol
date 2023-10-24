@@ -125,7 +125,7 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         require(rewards[usr][rtoken].r >= amount, "Rewarder/no-reward");
         rewards[usr][rtoken].r -= amount;
         
-        bool b = rtoken != address(core) && useEs == 1;
+        bool b = rtoken == address(core) && useEs == 1;
         if (b) {
             IERC20(rtoken).approve(address(esToken), amount);
             esToken.deposit(usr, amount);
