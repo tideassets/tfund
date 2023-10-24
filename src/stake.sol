@@ -70,6 +70,9 @@ contract Stake is ReentrancyGuard, Rewarder {
         uint[] memory ids = uids[usr];
         mapping(uint => Deposit) storage stakes_ = deposits;
         for (uint i = 0; i < ids.length; i++) {
+            if (ids[i] == 0) {
+                continue;
+            }
             Deposit memory stake_ = stakes_[ids[i]];
             amount += stake_.amt;
         }
@@ -88,16 +91,18 @@ contract Stake is ReentrancyGuard, Rewarder {
         }
 
         uint amt = 0;
-        uint[] storage ids = uids[usr];
+        uint[] memory ids = uids[usr];
         mapping(uint => Deposit) storage stakes_ = deposits;
         for (uint i = 0; i < ids.length; i++) {
+            if (ids[i] == 0) {
+                continue;
+            }
             Deposit memory stake_ = stakes_[ids[i]];
             if (stake_.start + MIN_STAKE_DURATION > block.timestamp) {
                 continue;
             }
             amt += stake_.amt;
-            ids[i] = ids[ids.length - 1];
-            ids.pop();
+            ids[i] = 0;
         }
         canWithdraw[usr] += amt;
         _updateReward(usr);
