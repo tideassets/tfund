@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {Val} from "../src/val.sol";
+import {Vault} from "../src/vault.sol";
 
-contract ValTest is Test {
-    Val public val;
+contract VaultTest is Test {
+    Vault public val;
 
     function setUp() public {
     }
