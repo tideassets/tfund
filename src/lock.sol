@@ -11,7 +11,7 @@ interface Miner {
     function mint(address, uint) external;
 }
 
-contract Lock is ReentrancyGuard, Auth {
+contract Lock is Auth {
     Miner public miner;
 
     mapping(bytes32 => uint) public remains;
@@ -117,7 +117,7 @@ contract Lock is ReentrancyGuard, Auth {
     function _mint(
         bytes32 key,
         uint start_
-    ) internal whenNotPaused nonReentrant returns (uint) {
+    ) internal returns (uint) {
         if (block.timestamp < start_) {
             return 0;
         }

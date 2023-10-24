@@ -87,7 +87,7 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
         uint256 amt,
         Long long
     ) external nonReentrant whenNotPaused returns (uint256) {
-        SafeERC20.safeTransferFrom(core, msg.sender, address(this), amt);
+        core.safeTransferFrom(msg.sender, address(this), amt);
 
         tokenId++;
         Pow memory pow = Pow(amt, block.timestamp, long, 0);

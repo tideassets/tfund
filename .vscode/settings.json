@@ -1,4 +1,8 @@
 {
     "commentTranslate.source": "Bing",
-    "solidity.telemetry": true
+    "solidity.telemetry": true,
+    "vscodeGoogleTranslate.preferredLanguage": "Chinese (Simplified)",
+    "vscodeGoogleTranslate.proxyHost": "socks5://121.52.224.84:10901",
+    "google-translate.maxSizeOfResult": 100,
+    "google-translate.switchFunctionTranslation": true
 }

@@ -30,7 +30,7 @@ interface InvLike {
     function rewardTokens(address usr) external view returns (address[] memory);
 }
 
-interface PriceProviderLike {
+interface OracleLike {
     function price(address ass1, address ass2) external view returns (uint256); // ass1/ass2
 
     function price(address ass) external view returns (uint256); // in usd
@@ -63,7 +63,7 @@ contract Vault is ReentrancyGuard, Auth {
     address[] invetors;
     address[] tokens;
 
-    PriceProviderLike public priceProvider;
+    OracleLike public oracle;
     ERC20Like public core; // TDT, TCAv1, TCAV2
     bool public inited = false;
 
@@ -72,7 +72,7 @@ contract Vault is ReentrancyGuard, Auth {
 
     constructor(address core_, address pp) {
         core = ERC20Like(core_);
-        priceProvider = PriceProviderLike(pp);
+        oracle = OracleLike(pp);
         tokens.push(address(0)); // index 0 is 0
     }
 
@@ -105,7 +105,7 @@ contract Vault is ReentrancyGuard, Auth {
     // price provider
     function setPriceProvider(address pp) external auth whenNotPaused {
         require(pp != address(0), "Vat/price provider not valid");
-        priceProvider = PriceProviderLike(pp);
+        oracle = OracleLike(pp);
     }
 
     function setInv(
@@ -152,7 +152,7 @@ contract Vault is ReentrancyGuard, Auth {
 
     function assetValue(address ass) public view returns (uint256) {
         uint256 balance = assetAmount(ass);
-        uint256 value = (priceProvider.price(ass) * balance) / ONE;
+        uint256 value = (oracle.price(ass) * balance) / ONE;
         return value;
     }
 
@@ -171,7 +171,7 @@ contract Vault is ReentrancyGuard, Auth {
     ) internal view returns (uint256) {
         int256 total = int256(totalValue());
         int256 assVal = int256(assetValue(ass));
-        int256 dval = (int256(priceProvider.price(ass)) * amt) / int256(ONE);
+        int256 dval = (int256(oracle.price(ass)) * amt) / int256(ONE);
         total += dval;
         assVal += dval;
         require(assVal > 0, "Val/asset is 0");
@@ -262,7 +262,7 @@ contract Vault is ReentrancyGuard, Auth {
         if (useFee) {
             fee = buyFee(ass, amt);
         }
-        uint256 price = priceProvider.price(address(core), ass); // tdt/ass
+        uint256 price = oracle.price(address(core), ass); // tdt/ass
         uint256 max = price * (amt - fee);
 
         core.mint(to, max);
@@ -279,7 +279,7 @@ contract Vault is ReentrancyGuard, Auth {
 
         core.burn(msg.sender, amt);
 
-        uint256 price = priceProvider.price(ass, address(core)); // ass/tdt
+        uint256 price = oracle.price(ass, address(core)); // ass/tdt
         uint256 max = price * amt;
         uint256 fee = sellFee(ass, max);
         max = max - fee;

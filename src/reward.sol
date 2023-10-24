@@ -7,6 +7,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
 
 interface EsTokenLike {
@@ -14,20 +15,28 @@ interface EsTokenLike {
 }
 
 abstract contract Rewarder is Auth, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     EsTokenLike public esToken;
     IERC20 public core;
-    uint public useEs = 1;
+    uint public useEs = 1; // if use esToken for core
 
+    // sendId recoder send bounty number to rewarder
     uint public sendId = 0;
+    // coinRewards: one coin reward each sendId
     mapping(uint => uint) public coinRewards; // one coin reward per id
-    uint public constant ONE = 10 ** 18;
+    uint public constant ONE = 10 ** 18; // one coin
 
+    // reward struct
     struct Rw {
-        uint r;
-        uint id;
+        uint r; // raward value
+        uint id; // last send id
     }
+    // rewards: user reward, key is user address and rtoken address
     mapping(address => mapping(address => Rw)) public rewards;
+    // rtokens: all reward token
     IERC20[] public rtokens;
+    // rtokenIndex: rtoken index in rtokens
     mapping(address => uint) public rtokenIndex;
 
     event SendBounty(address indexed rtoken, uint amount);
@@ -46,18 +55,27 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         useEs = 0;
     }
 
+    // sendBounty: send bounty to rewarder
+    // normally called by Distributor
     function sendBounty(
         address rtoken,
         uint amount
     ) external virtual nonReentrant whenNotPaused {
-        IERC20 rt = IERC20(rtoken);
-        rt.transferFrom(msg.sender, address(this), amount);
+        IERC20(rtoken).safeTransferFrom(msg.sender, address(this), amount);
         _addRtoken(rtoken);
 
         sendId++;
         coinRewards[sendId] = (ONE * amount) / _getTotalAmount();
 
         emit SendBounty(rtoken, amount);
+    }
+
+    function addRtoken(address rtoken) external auth {
+        _addRtoken(rtoken);
+    }
+
+    function delRtoken(address rtoken) external auth {
+        _delRtoken(rtoken);
     }
 
     function _addRtoken(address rtoken) internal {
@@ -77,6 +95,9 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         }
     }
 
+    /// virtual functions
+
+    // _getUserAmount: get user amount for calculate reward
     function _getUserAmount(address usr) internal view virtual returns (uint);
 
     function _getTotalAmount() internal view virtual returns (uint);
@@ -113,7 +134,8 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
 
     function _claimAll(address usr) internal {
         mapping(address => Rw) storage rs = rewards[usr];
-        for (uint i = 0; i < rtokens.length; i++) {
+        uint len = rtokens.length;
+        for (uint i = 0; i < len; i++) {
             IERC20 rtoken = rtokens[i];
             uint amount = rs[address(rtoken)].r;
             _claim(usr, amount, address(rtoken));
@@ -124,7 +146,7 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         _updateReward(usr, rtoken);
         require(rewards[usr][rtoken].r >= amount, "Rewarder/no-reward");
         rewards[usr][rtoken].r -= amount;
-        
+
         bool b = rtoken == address(core) && useEs == 1;
         if (b) {
             IERC20(rtoken).approve(address(esToken), amount);
