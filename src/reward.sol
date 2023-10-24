@@ -18,11 +18,17 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
     IERC20 public core;
     uint public useEs = 1;
 
-    mapping(address => mapping(address => uint)) public rewards;
+    uint public sendId = 0;
+    mapping(uint => uint) public coinRewards; // one coin reward per id
+    uint public constant ONE = 10 ** 18;
+
+    struct Rw {
+        uint r;
+        uint id;
+    }
+    mapping(address => mapping(address => Rw)) public rewards;
     IERC20[] public rtokens;
     mapping(address => uint) public rtokenIndex;
-    address[] public users;
-    mapping(address => uint) public userIndex;
 
     constructor(address esToken_, address core_) {
         esToken = EsTokenLike(esToken_);
@@ -37,28 +43,6 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         useEs = 0;
     }
 
-    function _claim(address usr, uint amount, address rtoken) internal virtual {
-        require(userIndex[usr] > 0, "Rewarder/no-user");
-        require(rewards[usr][rtoken] >= amount, "Rewarder/no-reward");
-        rewards[usr][rtoken] -= amount;
-        if (rtoken == address(core)) {
-            if (useEs == 1) {
-                IERC20(rtoken).approve(address(esToken), amount);
-                esToken.deposit(usr, amount);
-                return;
-            }
-        }
-        IERC20(rtoken).transfer(usr, amount);
-    }
-
-    function claimReward(
-        address rtoken,
-        uint amount
-    ) external nonReentrant whenNotPaused {
-        require(amount > 0, "Reward/no-reward");
-        _claim(msg.sender, amount, rtoken);
-    }
-
     function sendBounty(
         address rtoken,
         uint amount
@@ -67,12 +51,8 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         rt.transferFrom(msg.sender, address(this), amount);
         _addRtoken(rtoken);
 
-        for (uint i = 0; i < users.length; i++) {
-            _update(users[i]);
-            (uint uw, uint tw) = _getWeight(users[i]);
-            uint ra = (uw * amount) / tw;
-            rewards[users[i]][rtoken] += ra;
-        }
+        sendId++;
+        coinRewards[sendId] = (ONE * amount) / _getTotalAmount();
     }
 
     function _addRtoken(address rtoken) internal {
@@ -92,42 +72,69 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         }
     }
 
-    function _addUser(address usr) internal {
-        if (userIndex[usr] == 0) {
-            users.push(usr);
-            userIndex[usr] = users.length;
-        }
-    }
+    function _getUserAmount(address usr) internal view virtual returns (uint);
 
-    function _delUser(address usr) internal {
-        if (userIndex[usr] > 0) {
-            uint index = userIndex[usr] - 1;
-            users[index] = users[users.length - 1];
-            userIndex[users[index]] = index + 1;
-            users.pop();
-            userIndex[usr] = 0;
-        }
-    }
-
-    function _getWeight(address usr) internal view virtual returns (uint, uint);
+    function _getTotalAmount() internal view virtual returns (uint);
 
     function _update(address usr) internal virtual {}
+
+    function _updateReward(address usr, address rtoken_) internal virtual {
+        uint id = rewards[usr][rtoken_].id + 1;
+        uint r = 0;
+        uint sid = sendId;
+        mapping(uint => uint) storage coinRewards_ = coinRewards;
+        for (uint i = id; i <= sid; i++) {
+            r += (coinRewards_[i] * _getUserAmount(usr)) / ONE;
+        }
+        rewards[usr][rtoken_].id = sid;
+        rewards[usr][rtoken_].r += r;
+    }
+
+    function _updateReward(address usr) internal {
+        IERC20[] memory rtokens_ = rtokens;
+        for (uint i = 0; i < rtokens_.length; i++) {
+            _updateReward(usr, address(rtokens_[i]));
+        }
+    }
 
     function claimReward(
         address rtoken
     ) external nonReentrant whenNotPaused returns (uint) {
         _update(msg.sender);
-        uint amount = rewards[msg.sender][rtoken];
+        uint amount = rewards[msg.sender][rtoken].r;
         _claim(msg.sender, amount, rtoken);
         return amount;
     }
 
     function _claimAll(address usr) internal {
+        mapping(address => Rw) storage rs = rewards[usr];
         for (uint i = 0; i < rtokens.length; i++) {
             IERC20 rtoken = rtokens[i];
-            uint amount = rewards[usr][address(rtoken)];
+            uint amount = rs[address(rtoken)].r;
             _claim(usr, amount, address(rtoken));
         }
+    }
+
+    function _claim(address usr, uint amount, address rtoken) internal virtual {
+        _updateReward(usr, rtoken);
+        require(rewards[usr][rtoken].r >= amount, "Rewarder/no-reward");
+        rewards[usr][rtoken].r -= amount;
+        if (rtoken == address(core)) {
+            if (useEs == 1) {
+                IERC20(rtoken).approve(address(esToken), amount);
+                esToken.deposit(usr, amount);
+                return;
+            }
+        }
+        IERC20(rtoken).transfer(usr, amount);
+    }
+
+    function claimReward(
+        address rtoken,
+        uint amount
+    ) external nonReentrant whenNotPaused {
+        require(amount > 0, "Reward/no-reward");
+        _claim(msg.sender, amount, rtoken);
     }
 
     function claimAll() external nonReentrant whenNotPaused {

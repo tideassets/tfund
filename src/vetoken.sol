@@ -88,14 +88,19 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
         Long long
     ) external nonReentrant whenNotPaused returns (uint256) {
         SafeERC20.safeTransferFrom(core, msg.sender, address(this), amt);
+
         tokenId++;
         Pow memory pow = Pow(amt, block.timestamp, long, 0);
         pow.pow = power(tokenId);
         totalPower += pow.pow;
         pows[tokenId] = pow;
+
         _mint(msg.sender, tokenId);
+
         ids[msg.sender].push(tokenId);
-        _addUser(msg.sender);
+
+        _updateReward(msg.sender);
+
         emit Deposit(msg.sender, amt, block.timestamp, long);
         return tokenId;
     }
@@ -117,9 +122,8 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
         _burn(tokenId_);
         delete pows[tokenId_];
 
-        if (power(msg.sender) == 0) {
-            _delUser(msg.sender);
-        }
+        _updateReward(msg.sender);
+
         emit Withdraw(msg.sender, amt, start, long);
     }
 
@@ -127,10 +131,13 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
         require(false, "VeToken/not allowed");
     }
 
-    function _getWeight(
+    function _getUserAmount(
         address usr
-    ) internal view override returns (uint, uint) {
-        uint p = power(usr);
-        return (p, totalPower);
+    ) internal view override returns (uint) {
+        return power(usr);
+    }
+
+    function _getTotalAmount() internal view override returns (uint) {
+        return totalPower;
     }
 }

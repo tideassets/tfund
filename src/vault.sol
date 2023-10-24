@@ -183,8 +183,8 @@ contract Vault is ReentrancyGuard, Auth {
     }
 
     function deposit(
-        address[] memory asss_,
-        uint256[] memory amts_,
+        address[] calldata asss_,
+        uint256[] calldata amts_,
         address inv_
     ) external auth nonReentrant whenNotPaused {
         for (uint256 i = 0; i < asss_.length; i++) {

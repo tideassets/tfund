@@ -17,7 +17,9 @@ contract Stake is ReentrancyGuard, Rewarder {
         uint start;
     }
 
-    mapping(address => Deposit[]) public stakes;
+    uint public depositId; 
+    mapping (uint => Deposit) deposits;
+    mapping(address => uint[]) public uids;
     mapping(address => uint) public canWithdraw;
 
     uint constant MIN_STAKE_DURATION = 7 days;
@@ -37,10 +39,14 @@ contract Stake is ReentrancyGuard, Rewarder {
     function stake(uint amt) external nonReentrant whenNotPaused {
         require(amt > 0, "Stake/zero-amount");
         lpToken.transferFrom(msg.sender, address(this), amt);
+
         Deposit memory stake_ = Deposit(amt, block.timestamp);
-        stakes[msg.sender].push(stake_);
+        depositId++;
+        uids[msg.sender].push(depositId);
+        deposits[depositId] = stake_;
+        totalStakes += amt;
+
         _update(msg.sender);
-        _addUser(msg.sender);
         emit Stakee(msg.sender, amt);
     }
 
@@ -61,8 +67,10 @@ contract Stake is ReentrancyGuard, Rewarder {
 
     function stakeAmount(address usr) public view returns (uint, uint) {
         uint amount = 0;
-        for (uint i = 0; i < stakes[usr].length; i++) {
-            Deposit memory stake_ = stakes[usr][i];
+        uint[] memory ids = uids[usr];
+        mapping(uint => Deposit) storage stakes_ = deposits;
+        for (uint i = 0; i < ids.length; i++) {
+            Deposit memory stake_ = stakes_[ids[i]];
             amount += stake_.amt;
         }
         return (canWithdraw[usr], amount);
@@ -76,26 +84,32 @@ contract Stake is ReentrancyGuard, Rewarder {
         (uint wa, uint sa) = stakeAmount(usr);
         if (wa + sa == 0) {
             _claimAll(usr);
-            _delUser(usr);
             return;
         }
 
-        for (uint i = 0; i < stakes[usr].length; i++) {
-            Deposit memory stake_ = stakes[usr][i];
+        uint amt = 0;
+        uint[] storage ids = uids[usr];
+        mapping(uint => Deposit) storage stakes_ = deposits;
+        for (uint i = 0; i < ids.length; i++) {
+            Deposit memory stake_ = stakes_[ids[i]];
             if (stake_.start + MIN_STAKE_DURATION > block.timestamp) {
                 continue;
             }
-            uint amt = stake_.amt;
-            canWithdraw[usr] += amt;
-            totalStakes += amt;
-            stakes[usr][i] = stakes[usr][stakes[usr].length - 1];
-            stakes[usr].pop();
+            amt += stake_.amt;
+            ids[i] = ids[ids.length - 1];
+            ids.pop();
         }
+        canWithdraw[usr] += amt;
+        _updateReward(usr);
     }
 
-    function _getWeight(
+    function _getUserAmount(
         address usr
-    ) internal view override returns (uint, uint) {
-        return (canWithdraw[usr], totalStakes);
+    ) internal view override returns (uint) {
+        (uint wa, uint sa) = stakeAmount(usr);
+        return wa+sa;
+    }
+    function _getTotalAmount() internal view override returns (uint) {
+        return totalStakes;
     }
 }
