@@ -30,6 +30,9 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
     IERC20[] public rtokens;
     mapping(address => uint) public rtokenIndex;
 
+    event SendBounty(address indexed rtoken, uint amount);
+    event ClaimReward(address indexed usr, uint amount, address indexed rtoken);
+
     constructor(address esToken_, address core_) {
         esToken = EsTokenLike(esToken_);
         core = IERC20(core_);
@@ -53,6 +56,8 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
 
         sendId++;
         coinRewards[sendId] = (ONE * amount) / _getTotalAmount();
+
+        emit SendBounty(rtoken, amount);
     }
 
     function _addRtoken(address rtoken) internal {
@@ -119,14 +124,15 @@ abstract contract Rewarder is Auth, ReentrancyGuard {
         _updateReward(usr, rtoken);
         require(rewards[usr][rtoken].r >= amount, "Rewarder/no-reward");
         rewards[usr][rtoken].r -= amount;
-        if (rtoken == address(core)) {
-            if (useEs == 1) {
-                IERC20(rtoken).approve(address(esToken), amount);
-                esToken.deposit(usr, amount);
-                return;
-            }
+        
+        bool b = rtoken != address(core) && useEs == 1;
+        if (b) {
+            IERC20(rtoken).approve(address(esToken), amount);
+            esToken.deposit(usr, amount);
+        } else {
+            IERC20(rtoken).transfer(usr, amount);
         }
-        IERC20(rtoken).transfer(usr, amount);
+        emit ClaimReward(usr, amount, rtoken);
     }
 
     function claimReward(
