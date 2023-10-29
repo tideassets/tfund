@@ -7,7 +7,47 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
+import "./reward.sol";
+
+
+interface RewarderLike {
+    function stake(address, uint) external;
+    function unstake(address, uint) external;
+    function claim(address, uint) external;
+    function claim(address) external;
+}
+
+contract Stakex is ERC20, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    IERC20 public sToken;
+    RTokens public rTokens;
+
+    mapping(address => RewarderLike) public rewarders; // key is rtoken
+
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        address sToken_
+    ) ERC20(name_, symbol_) {
+        sToken = IERC20(sToken_);
+    }
+
+    function stake(address to, uint amt) external nonReentrant {
+        require(amt > 0, "Stake/zero-amount");
+        sToken.transferFrom(msg.sender, address(this), amt);
+        _mint(to, amt);
+    }
+
+    function unstake(address to, uint amt) external nonReentrant {
+        require(amt > 0, "Stake/zero-amount");
+        _burn(msg.sender, amt);
+        sToken.transfer(to, amt);
+    }
+}
 
 contract Stake is Auth, ReentrancyGuard {
     IERC20 public lpToken;
@@ -17,8 +57,8 @@ contract Stake is Auth, ReentrancyGuard {
         uint start;
     }
 
-    uint public depositId; 
-    mapping (uint => Deposit) deposits;
+    uint public depositId;
+    mapping(uint => Deposit) deposits;
     mapping(address => uint[]) public uids;
     mapping(address => uint) public canWithdraw;
 
@@ -28,9 +68,7 @@ contract Stake is Auth, ReentrancyGuard {
     event Stakee(address indexed usr, uint amt);
     event Unstake(address indexed usr, uint amt);
 
-    constructor(
-        address lpToken_
-    )  {
+    constructor(address lpToken_) {
         lpToken = IERC20(lpToken_);
     }
 
@@ -103,5 +141,4 @@ contract Stake is Auth, ReentrancyGuard {
         }
         canWithdraw[usr] += amt;
     }
-
 }
