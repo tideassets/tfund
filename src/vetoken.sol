@@ -8,11 +8,12 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./reward.sol";
+import "./auth.sol";
 
-contract VeToken is ERC721, ReentrancyGuard, Rewarder {
+contract VeToken is Auth, ERC721, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    IERC20 public core;
     uint256 public tokenId; // current
 
     struct Pow {
@@ -43,10 +44,8 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
 
     constructor(
         string memory name_,
-        string memory symbol_,
-        address core_,
-        address esToken_
-    ) ERC721(name_, symbol_) Rewarder(esToken_, core_) {
+        string memory symbol_
+    ) ERC721(name_, symbol_) {
         longs[Long.ONEMON] = 30 days;
         longs[Long.SIXMON] = 180 days;
         longs[Long.ONEYEAR] = 365 days;
@@ -99,8 +98,6 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
 
         ids[msg.sender].push(tokenId);
 
-        _updateReward(msg.sender);
-
         emit Deposit(msg.sender, amt, block.timestamp, long);
         return tokenId;
     }
@@ -122,22 +119,10 @@ contract VeToken is ERC721, ReentrancyGuard, Rewarder {
         _burn(tokenId_);
         delete pows[tokenId_];
 
-        _updateReward(msg.sender);
-
         emit Withdraw(msg.sender, amt, start, long);
     }
 
     function transferFrom(address, address, uint256) public pure override {
         require(false, "VeToken/not allowed");
-    }
-
-    function _getUserAmount(
-        address usr
-    ) internal view override returns (uint) {
-        return power(usr);
-    }
-
-    function _getTotalAmount() internal view override returns (uint) {
-        return totalPower;
     }
 }

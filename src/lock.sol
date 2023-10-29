@@ -5,14 +5,16 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
 
-interface Miner {
+interface IToken is IERC20 {
     function mint(address, uint) external;
 }
 
 contract Lock is Auth {
-    Miner public miner;
+    IToken public token;
+    using SafeERC20 for IToken;
 
     mapping(bytes32 => uint) public remains;
     mapping(bytes32 => uint) public minted;
@@ -25,10 +27,15 @@ contract Lock is Auth {
     uint public initTeamLockLong = 300 days;
     uint public lpNext = 0;
 
-    event DaoMint(address indexed usr, uint amt);
-    event TsaDaoMint(address indexed usr, uint amt);
-    event TeamMint(address indexed usr, uint amt);
-    event LpFundMint(address indexed usr, uint amt);
+    event Unlock(bytes32 indexed role, address indexed usr, uint amt);
+
+    modifier OnlyRole(bytes32 role) {
+        require(
+            msg.sender == addrs[role] || wards[msg.sender] == 1,
+            "Lock: OnlyRole"
+        );
+        _;
+    }
 
     constructor(
         address token_,
@@ -37,7 +44,7 @@ contract Lock is Auth {
         address team_,
         address lpFund_
     ) {
-        miner = Miner(token_);
+        token = IToken(token_);
 
         addrs["dao"] = dao_;
         addrs["tsaDao"] = tsaDao_;
@@ -49,11 +56,13 @@ contract Lock is Auth {
         cycle["team"] = 30 days;
         cycle["lpFund"] = 7 days;
 
-        miner.mint(dao_, 2e7 * ONE);
-        remains["tsaDao"] = 1e8 * ONE;
-        remains["team"] = 1e8 * ONE;
-        remains["dao"] = 8e7 * ONE;
-        remains["lpFund"] = 7e8 * ONE;
+        token.mint(address(this), 1e8 * ONE);
+        token.safeTransfer(dao_, 2e6 * ONE);
+
+        remains["tsaDao"] = 1e7 * ONE;
+        remains["team"] = 1e7 * ONE;
+        remains["dao"] = 8e6 * ONE;
+        remains["lpFund"] = 7e7 * ONE;
         start = block.timestamp;
 
         cycleMinted["dao"] = remains["dao"] / 80;
@@ -78,68 +87,54 @@ contract Lock is Auth {
         addrs["lpFund"] = lpFund;
     }
 
-    function daoMint() external {
-        uint amt = _mint("dao", start);
-        if (amt == 0) {
-            return;
-        }
-        emit DaoMint(addrs["dao"], amt);
+    function daoUnlock() external {
+        _unlock("dao", start);
     }
 
-    function tsaDaoMint() external {
-        uint amt = _mint("tsaDao", start);
-        if (amt == 0) {
-            return;
-        }
-        emit TsaDaoMint(addrs["tsaDao"], amt);
+    function tsaUnlock() external {
+        _unlock("tsaDao", start);
     }
 
-    function teamMint() external {
-        uint amt = _mint("team", start + initTeamLockLong);
-        if (amt == 0) {
-            return;
-        }
-        emit TeamMint(addrs["team"], amt);
+    function teamUnlock() external {
+        _unlock("team", start + initTeamLockLong);
     }
 
-    function lpFundMint() external {
-        uint amt = _mint("lpFund", start);
-        if (amt == 0) {
-            return;
-        }
-        emit LpFundMint(addrs["lpFund"], amt);
+    function lpFundUnlock() external {
+        _unlock("lpFund", start);
     }
 
     function setLpNext(uint amt) external auth {
         lpNext = amt;
     }
 
-    function _mint(
-        bytes32 key,
+    function _unlock(
+        bytes32 role,
         uint start_
-    ) internal returns (uint) {
+    ) internal OnlyRole(role) returns (uint) {
         if (block.timestamp < start_) {
             return 0;
         }
 
-        if (remains[key] == 0) {
+        if (remains[role] == 0) {
             return 0;
         }
 
-        uint nth = (block.timestamp - start_) / cycle[key];
-        uint amt = cycleMinted[key] * nth - minted[key];
+        uint nth = (block.timestamp - start_) / cycle[role];
+        uint amt = cycleMinted[role] * nth - minted[role];
 
-        if (remains[key] < amt) {
-            amt = remains[key];
+        if (remains[role] < amt) {
+            amt = remains[role];
         }
 
         if (amt == 0) {
             return 0;
         }
 
-        remains[key] -= amt;
-        miner.mint(addrs[key], amt);
-        minted[key] += amt;
+        remains[role] -= amt;
+        token.safeTransfer(addrs[role], amt);
+        minted[role] += amt;
+
+        emit Unlock(role, addrs["lpFund"], amt);
         return amt;
     }
 }

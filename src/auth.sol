@@ -8,7 +8,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 abstract contract Auth is Pausable {
-    mapping(address => uint) private wards;
+    mapping(address => uint) internal wards;
 
     modifier auth() {
         require(wards[msg.sender] == 1, "Val/not-authorized");

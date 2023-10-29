@@ -7,9 +7,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./reward.sol";
+import "./auth.sol";
 
-contract Stake is ReentrancyGuard, Rewarder {
+contract Stake is Auth, ReentrancyGuard {
     IERC20 public lpToken;
 
     struct Deposit {
@@ -29,10 +29,8 @@ contract Stake is ReentrancyGuard, Rewarder {
     event Unstake(address indexed usr, uint amt);
 
     constructor(
-        address lpToken_,
-        address esToken_,
-        address core_
-    ) Rewarder(esToken_, core_) {
+        address lpToken_
+    )  {
         lpToken = IERC20(lpToken_);
     }
 
@@ -83,10 +81,9 @@ contract Stake is ReentrancyGuard, Rewarder {
         _update(usr);
     }
 
-    function _update(address usr) internal override {
+    function _update(address usr) internal {
         (uint wa, uint sa) = stakeAmount(usr);
         if (wa + sa == 0) {
-            _claimAll(usr);
             return;
         }
 
@@ -105,16 +102,6 @@ contract Stake is ReentrancyGuard, Rewarder {
             ids[i] = 0;
         }
         canWithdraw[usr] += amt;
-        _updateReward(usr);
     }
 
-    function _getUserAmount(
-        address usr
-    ) internal view override returns (uint) {
-        (uint wa, uint sa) = stakeAmount(usr);
-        return wa+sa;
-    }
-    function _getTotalAmount() internal view override returns (uint) {
-        return totalStakes;
-    }
 }
