@@ -15,8 +15,12 @@ interface EsTokenLike {
 }
 
 contract RTokens is Auth {
-    IERC20[] public rtokens;
+    address[] public rtokens;
     mapping(address => uint) public rtokenIndex;
+
+    function count() public view returns (uint) {
+        return rtokens.length;
+    }
 
     function addRtoken(address rtoken) external auth {
         _addRtoken(rtoken);
@@ -26,14 +30,14 @@ contract RTokens is Auth {
         _delRtoken(rtoken);
     }
 
-    function _addRtoken(address rtoken) internal {
+    function _addRtoken(address rtoken) internal virtual {
         if (rtokenIndex[rtoken] == 0) {
-            rtokens.push(IERC20(rtoken));
+            rtokens.push(rtoken);
             rtokenIndex[rtoken] = rtokens.length;
         }
     }
 
-    function _delRtoken(address rtoken) internal {
+    function _delRtoken(address rtoken) internal virtual {
         if (rtokenIndex[rtoken] > 0) {
             uint index = rtokenIndex[rtoken] - 1;
             rtokens[index] = rtokens[rtokens.length - 1];
@@ -104,6 +108,8 @@ abstract contract BaseRewarder is Auth, ReentrancyGuard {
     function claimable(address usr) public view virtual returns (uint);
 
     function sendReward(uint amount) external virtual;
+
+    function _newCycle() internal virtual {}
 }
 
 contract RewarderCycle is BaseRewarder {
@@ -123,13 +129,14 @@ contract RewarderCycle is BaseRewarder {
 
     function sendReward(
         uint amount
-    ) external override nonReentrant whenNotPaused {
-        IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
+    ) external override nonReentrant whenNotPaused auth {
+        // IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
         cycleRewards[cycleId] += amount;
+        _newCycle();
         emit SendReward(amount);
     }
 
-    function newCycle() external auth {
+    function _newCycle() internal override {
         uint amount = cycleRewards[cycleId];
         oneRewardPerCycle[cycleId] = (amount * ONE) / totalStakes;
         cycleId++;

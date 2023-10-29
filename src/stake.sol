@@ -12,133 +12,94 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
 import "./reward.sol";
 
-
 interface RewarderLike {
     function stake(address, uint) external;
+
     function unstake(address, uint) external;
+
     function claim(address, uint) external;
+
     function claim(address) external;
+
+    function sendReward(address, uint) external;
 }
 
-contract Stakex is ERC20, ReentrancyGuard {
+contract Stakex is ERC20, ReentrancyGuard, Auth {
     using SafeERC20 for IERC20;
 
     IERC20 public sToken;
-    RTokens public rTokens;
+    address public esToken;
 
+    RTokens public rtokens;
     mapping(address => RewarderLike) public rewarders; // key is rtoken
 
     constructor(
         string memory name_,
         string memory symbol_,
-        address sToken_
+        address sToken_,
+        address esToken_
     ) ERC20(name_, symbol_) {
         sToken = IERC20(sToken_);
+        esToken = esToken_;
+        rtokens = new RTokens();
+    }
+
+    function addRtoken(address rtoken, bool isCycle) external auth {
+        rtokens.addRtoken(rtoken);
+        RewarderLike rl;
+        if (isCycle) {
+            RewarderCycle r = new RewarderCycle(rtoken, esToken);
+            rl = RewarderLike(address(r));
+        } else {
+            RewarderPerSecond r = new RewarderPerSecond(rtoken, esToken);
+            rl = RewarderLike(address(r));
+        }
+        rewarders[rtoken] = rl;
+    }
+
+    function delRtoken(address rtoken) external auth {
+        rtokens.delRtoken(rtoken);
+        delete rewarders[rtoken];
     }
 
     function stake(address to, uint amt) external nonReentrant {
         require(amt > 0, "Stake/zero-amount");
         sToken.transferFrom(msg.sender, address(this), amt);
         _mint(to, amt);
+
+        _stake(to, amt);
+    }
+
+    function _stake(address to, uint amt) internal {
+        uint rtlen = rtokens.count();
+        mapping(address => RewarderLike) storage rewarders_ = rewarders;
+        for (uint i = 0; i < rtlen; i++) {
+            address rt = rtokens.rtokens(i);
+            rewarders_[rt].stake(to, amt);
+        }
     }
 
     function unstake(address to, uint amt) external nonReentrant {
         require(amt > 0, "Stake/zero-amount");
         _burn(msg.sender, amt);
         sToken.transfer(to, amt);
-    }
-}
 
-contract Stake is Auth, ReentrancyGuard {
-    IERC20 public lpToken;
-
-    struct Deposit {
-        uint amt;
-        uint start;
+        _unstake(to, amt);
     }
 
-    uint public depositId;
-    mapping(uint => Deposit) deposits;
-    mapping(address => uint[]) public uids;
-    mapping(address => uint) public canWithdraw;
-
-    uint constant MIN_STAKE_DURATION = 7 days;
-    uint public totalStakes;
-
-    event Stakee(address indexed usr, uint amt);
-    event Unstake(address indexed usr, uint amt);
-
-    constructor(address lpToken_) {
-        lpToken = IERC20(lpToken_);
-    }
-
-    function stake(uint amt) external nonReentrant whenNotPaused {
-        require(amt > 0, "Stake/zero-amount");
-        lpToken.transferFrom(msg.sender, address(this), amt);
-
-        Deposit memory stake_ = Deposit(amt, block.timestamp);
-        depositId++;
-        uids[msg.sender].push(depositId);
-        deposits[depositId] = stake_;
-        totalStakes += amt;
-
-        _update(msg.sender);
-        emit Stakee(msg.sender, amt);
-    }
-
-    function unstake() external nonReentrant whenNotPaused {
-        uint amt = canWithdraw[msg.sender];
-        unstake(amt);
-    }
-
-    function unstake(uint amt) public nonReentrant whenNotPaused {
-        _update(msg.sender);
-        require(canWithdraw[msg.sender] >= amt, "Stake/no-stake");
-        canWithdraw[msg.sender] -= amt;
-        totalStakes -= amt;
-        lpToken.transfer(msg.sender, amt);
-
-        emit Unstake(msg.sender, amt);
-    }
-
-    function stakeAmount(address usr) public view returns (uint, uint) {
-        uint amount = 0;
-        uint[] memory ids = uids[usr];
-        mapping(uint => Deposit) storage stakes_ = deposits;
-        for (uint i = 0; i < ids.length; i++) {
-            if (ids[i] == 0) {
-                continue;
-            }
-            Deposit memory stake_ = stakes_[ids[i]];
-            amount += stake_.amt;
+    function _unstake(address to, uint amt) internal {
+        uint rtlen = rtokens.count();
+        mapping(address => RewarderLike) storage rewarders_ = rewarders;
+        for (uint i = 0; i < rtlen; i++) {
+            address rt = rtokens.rtokens(i);
+            rewarders_[rt].unstake(to, amt);
         }
-        return (canWithdraw[usr], amount);
     }
 
-    function update(address usr) external nonReentrant whenNotPaused {
-        _update(usr);
-    }
-
-    function _update(address usr) internal {
-        (uint wa, uint sa) = stakeAmount(usr);
-        if (wa + sa == 0) {
-            return;
-        }
-
-        uint amt = 0;
-        uint[] memory ids = uids[usr];
-        mapping(uint => Deposit) storage stakes_ = deposits;
-        for (uint i = 0; i < ids.length; i++) {
-            if (ids[i] == 0) {
-                continue;
-            }
-            Deposit memory stake_ = stakes_[ids[i]];
-            if (stake_.start + MIN_STAKE_DURATION > block.timestamp) {
-                continue;
-            }
-            amt += stake_.amt;
-            ids[i] = 0;
-        }
-        canWithdraw[usr] += amt;
+    function distribute(address rtoken, uint amt) external auth {
+        RewarderLike rl = rewarders[rtoken];
+        IERC20 token = IERC20(rtoken);
+        token.safeTransferFrom(msg.sender, address(rl), amt);
+        rl.sendReward(rtoken, amt);
     }
 }
