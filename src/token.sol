@@ -59,6 +59,7 @@ abstract contract OFTWithFee is BaseOFTWithFee, ERC20 {
     }
 }
 
+// clone from pancake CakeOFT contract
 contract TToken is OFTWithFee, Pausable {
     // Outbound cap
     mapping(uint16 => uint256) public chainIdToOutboundCap;
