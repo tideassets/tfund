@@ -11,118 +11,115 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
 
 contract VeToken is Auth, ERC721, ReentrancyGuard {
-    using SafeERC20 for IERC20;
+  using SafeERC20 for IERC20;
 
-    IERC20 public core;
-    uint256 public tokenId; // current
+  IERC20 public core;
+  uint256 public tokenId; // current
 
-    struct Pow {
-        uint256 amt;
-        uint256 start;
-        Long long;
-        uint256 pow;
+  struct Pow {
+    uint256 amt;
+    uint256 start;
+    Long long;
+    uint256 pow;
+  }
+
+  enum Long {
+    ONEMON,
+    SIXMON,
+    ONEYEAR,
+    TWOYEAR,
+    FOURYEAR
+  }
+
+  uint256 public constant POW_DIVISOR = 1000000;
+  uint256 public totalPower;
+
+  mapping(uint256 => Pow) public pows; // key is tokenId
+  mapping(address => uint256[]) public ids; // key is usr address, value is tokenIds
+  mapping(Long => uint256) public mults;
+  mapping(Long => uint256) public longs;
+
+  event Deposit(address indexed usr, uint256 amt, uint256 start, Long long);
+  event Withdraw(address indexed usr, uint256 amt, uint256 start, Long long);
+
+  constructor(
+    string memory name_,
+    string memory symbol_
+  ) ERC721(name_, symbol_) {
+    longs[Long.ONEMON] = 30 days;
+    longs[Long.SIXMON] = 180 days;
+    longs[Long.ONEYEAR] = 365 days;
+    longs[Long.TWOYEAR] = longs[Long.ONEYEAR] * 2;
+    longs[Long.FOURYEAR] = longs[Long.TWOYEAR] * 2;
+
+    // base rate = 1.025
+    // ONEMON = 1.025, SIXMON = 1.025 ** 6, ONEYEAR = 1.025 ** 12, 24, 48 ...
+    mults[Long.ONEMON] = 1025000;
+    mults[Long.SIXMON] = 1159563;
+    mults[Long.ONEYEAR] = 1344889;
+    mults[Long.TWOYEAR] = 1808726;
+    mults[Long.FOURYEAR] = 3271490;
+  }
+
+  function power(uint256 tokenId_) public view returns (uint256) {
+    Long l = pows[tokenId_].long;
+    uint256 amt = pows[tokenId_].amt;
+    uint256 mult = mults[l];
+    return (mult * amt) / POW_DIVISOR;
+  }
+
+  // user power
+  function power(address user) public view returns (uint256) {
+    uint256[] memory ids_ = ids[user];
+    uint256 p = 0;
+    for (uint256 i = 0; i < ids_.length; i++) {
+      uint256 id = ids_[i];
+      if (ownerOf(id) != user) {
+        continue;
+      }
+      p += power(id);
     }
+    return p;
+  }
 
-    enum Long {
-        ONEMON,
-        SIXMON,
-        ONEYEAR,
-        TWOYEAR,
-        FOURYEAR
-    }
+  function deposit(
+    uint256 amt,
+    Long long
+  ) external nonReentrant whenNotPaused returns (uint256) {
+    core.safeTransferFrom(msg.sender, address(this), amt);
 
-    uint256 public constant POW_DIVISOR = 1000000;
-    uint256 public totalPower;
+    tokenId++;
+    Pow memory pow = Pow(amt, block.timestamp, long, 0);
+    pow.pow = power(tokenId);
+    totalPower += pow.pow;
+    pows[tokenId] = pow;
 
-    mapping(uint256 => Pow) public pows; // key is tokenId
-    mapping(address => uint256[]) public ids; // key is usr address, value is tokenIds
-    mapping(Long => uint256) public mults;
-    mapping(Long => uint256) public longs;
+    _mint(msg.sender, tokenId);
 
-    event Deposit(address indexed usr, uint256 amt, uint256 start, Long long);
-    event Withdraw(address indexed usr, uint256 amt, uint256 start, Long long);
+    ids[msg.sender].push(tokenId);
 
-    constructor(
-        string memory name_,
-        string memory symbol_
-    ) ERC721(name_, symbol_) {
-        longs[Long.ONEMON] = 30 days;
-        longs[Long.SIXMON] = 180 days;
-        longs[Long.ONEYEAR] = 365 days;
-        longs[Long.TWOYEAR] = longs[Long.ONEYEAR] * 2;
-        longs[Long.FOURYEAR] = longs[Long.TWOYEAR] * 2;
+    emit Deposit(msg.sender, amt, block.timestamp, long);
+    return tokenId;
+  }
 
-        // base rate = 1.025
-        // ONEMON = 1.025, SIXMON = 1.025 ** 6, ONEYEAR = 1.025 ** 12, 24, 48 ...
-        mults[Long.ONEMON] = 1025000;
-        mults[Long.SIXMON] = 1159563;
-        mults[Long.ONEYEAR] = 1344889;
-        mults[Long.TWOYEAR] = 1808726;
-        mults[Long.FOURYEAR] = 3271490;
-    }
+  function withdraw(uint256 tokenId_) external nonReentrant whenNotPaused {
+    require(ownerOf(tokenId_) == msg.sender, "VeToken/tokenId not belong you");
+    uint256 start = pows[tokenId_].start;
+    Long long = pows[tokenId_].long;
+    require(block.timestamp >= start + longs[long], "VeToken/time is't up");
 
-    function power(uint256 tokenId_) public view returns (uint256) {
-        Long l = pows[tokenId_].long;
-        uint256 amt = pows[tokenId_].amt;
-        uint256 mult = mults[l];
-        return (mult * amt) / POW_DIVISOR;
-    }
+    uint256 amt = pows[tokenId_].amt;
+    uint256 pow = power(tokenId_);
+    totalPower -= pow;
+    core.safeTransfer(msg.sender, amt);
 
-    // user power
-    function power(address user) public view returns (uint256) {
-        uint256[] memory ids_ = ids[user];
-        uint256 p = 0;
-        for (uint256 i = 0; i < ids_.length; i++) {
-            uint256 id = ids_[i];
-            if (ownerOf(id) != user) {
-                continue;
-            }
-            p += power(id);
-        }
-        return p;
-    }
+    _burn(tokenId_);
+    delete pows[tokenId_];
 
-    function deposit(
-        uint256 amt,
-        Long long
-    ) external nonReentrant whenNotPaused returns (uint256) {
-        core.safeTransferFrom(msg.sender, address(this), amt);
+    emit Withdraw(msg.sender, amt, start, long);
+  }
 
-        tokenId++;
-        Pow memory pow = Pow(amt, block.timestamp, long, 0);
-        pow.pow = power(tokenId);
-        totalPower += pow.pow;
-        pows[tokenId] = pow;
-
-        _mint(msg.sender, tokenId);
-
-        ids[msg.sender].push(tokenId);
-
-        emit Deposit(msg.sender, amt, block.timestamp, long);
-        return tokenId;
-    }
-
-    function withdraw(uint256 tokenId_) external nonReentrant whenNotPaused {
-        require(
-            ownerOf(tokenId_) == msg.sender,
-            "VeToken/tokenId not belong you"
-        );
-        uint256 start = pows[tokenId_].start;
-        Long long = pows[tokenId_].long;
-        require(block.timestamp >= start + longs[long], "VeToken/time is't up");
-
-        uint256 amt = pows[tokenId_].amt;
-        uint256 pow = power(tokenId_);
-        totalPower -= pow;
-        core.safeTransfer(msg.sender, amt);
-
-        _burn(tokenId_);
-        delete pows[tokenId_];
-
-        emit Withdraw(msg.sender, amt, start, long);
-    }
-
-    function transferFrom(address, address, uint256) public pure override {
-        require(false, "VeToken/not allowed");
-    }
+  function transferFrom(address, address, uint256) public pure override {
+    require(false, "VeToken/not allowed");
+  }
 }

@@ -10,9 +10,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./auth.sol";
 
 contract Dao is Auth, ReentrancyGuard {
-    using SafeERC20 for IERC20;
+  using SafeERC20 for IERC20;
 
-    function withdrwa(address token, uint amt) external auth nonReentrant {
-        IERC20(token).safeTransfer(msg.sender, amt);
-    }
+  function withdrwa(address token, uint amt) external auth nonReentrant {
+    IERC20(token).safeTransfer(msg.sender, amt);
+  }
 }
