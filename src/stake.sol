@@ -48,11 +48,9 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
         rtokens.addRtoken(rtoken);
         RewarderLike rl;
         if (isCycle) {
-            RewarderCycle r = new RewarderCycle(rtoken, esToken);
-            rl = RewarderLike(address(r));
+            rl = RewarderLike(address(new RewarderCycle(rtoken, esToken)));
         } else {
-            RewarderPerSecond r = new RewarderPerSecond(rtoken, esToken);
-            rl = RewarderLike(address(r));
+            rl = RewarderLike(address(new RewarderPerSecond(rtoken, esToken)));
         }
         rewarders[rtoken] = rl;
     }
