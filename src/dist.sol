@@ -9,7 +9,5 @@ import "./estoken.sol";
 import "./auth.sol";
 
 contract Distributer is Auth {
-  constructor() {
-    
-  }
+  constructor() {}
 }
