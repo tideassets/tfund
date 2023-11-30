@@ -2,7 +2,6 @@
 // Copyright (C) 2023
 // uses.sol : use estoken for rewards
 //
-
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -69,17 +68,11 @@ abstract contract BaseRewarder is Auth, ReentrancyGuard {
   event SendReward(uint amount);
   event Claim(address indexed usr, address recv, uint amount);
 
-  function stake(
-    address usr,
-    uint amt
-  ) external nonReentrant whenNotPaused auth {
+  function stake(address usr, uint amt) external nonReentrant whenNotPaused auth {
     _stake(usr, amt);
   }
 
-  function unstake(
-    address usr,
-    uint amt
-  ) external nonReentrant whenNotPaused auth {
+  function unstake(address usr, uint amt) external nonReentrant whenNotPaused auth {
     _unstake(usr, amt);
   }
 
@@ -87,10 +80,7 @@ abstract contract BaseRewarder is Auth, ReentrancyGuard {
 
   function _unstake(address usr, uint amt) internal virtual;
 
-  function claim(
-    address usr,
-    address recv
-  ) external nonReentrant whenNotPaused {
+  function claim(address usr, address recv) external nonReentrant whenNotPaused {
     uint amount = _claim(usr);
     if (useEs == 1) {
       IERC20(rewardToken).approve(address(esToken), amount);
@@ -112,7 +102,7 @@ abstract contract BaseRewarder is Auth, ReentrancyGuard {
   function _newCycle() internal virtual {}
 }
 
-contract RewarderCycle is BaseRewarder {
+contract RewarderStake is BaseRewarder {
   using SafeERC20 for IERC20;
 
   uint public CYCLE = 7 days;
@@ -127,9 +117,7 @@ contract RewarderCycle is BaseRewarder {
 
   constructor(address rt, address est) BaseRewarder(rt, est) {}
 
-  function sendReward(
-    uint amount
-  ) external override nonReentrant whenNotPaused auth {
+  function sendReward(uint amount) external override nonReentrant whenNotPaused auth {
     // IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
     cycleRewards[cycleId] += amount;
     _newCycle();
@@ -209,9 +197,7 @@ contract RewarderPerSecond is BaseRewarder {
     usrStakes[usr] -= amt;
   }
 
-  function sendReward(
-    uint amount
-  ) external override nonReentrant whenNotPaused {
+  function sendReward(uint amount) external override nonReentrant whenNotPaused {
     IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
     emit SendReward(amount);
   }

@@ -14,13 +14,13 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
   IERC20 public core;
-  uint256 public tokenId; // current
+  uint public tokenId; // current
 
   struct Pow {
-    uint256 amt;
-    uint256 start;
+    uint amt;
+    uint start;
     Long long;
-    uint256 pow;
+    uint pow;
   }
 
   enum Long {
@@ -31,21 +31,18 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     FOURYEAR
   }
 
-  uint256 public constant POW_DIVISOR = 1000000;
-  uint256 public totalPower;
+  uint public constant POW_DIVISOR = 1000000;
+  uint public totalPower;
 
-  mapping(uint256 => Pow) public pows; // key is tokenId
-  mapping(address => uint256[]) public ids; // key is usr address, value is tokenIds
-  mapping(Long => uint256) public mults;
-  mapping(Long => uint256) public longs;
+  mapping(uint => Pow) public pows; // key is tokenId
+  mapping(address => uint[]) public ids; // key is usr address, value is tokenIds
+  mapping(Long => uint) public mults;
+  mapping(Long => uint) public longs;
 
-  event Deposit(address indexed usr, uint256 amt, uint256 start, Long long);
-  event Withdraw(address indexed usr, uint256 amt, uint256 start, Long long);
+  event Deposit(address indexed usr, uint amt, uint start, Long long);
+  event Withdraw(address indexed usr, uint amt, uint start, Long long);
 
-  constructor(
-    string memory name_,
-    string memory symbol_
-  ) ERC721(name_, symbol_) {
+  constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
     longs[Long.ONEMON] = 30 days;
     longs[Long.SIXMON] = 180 days;
     longs[Long.ONEYEAR] = 365 days;
@@ -61,19 +58,19 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     mults[Long.FOURYEAR] = 3271490;
   }
 
-  function power(uint256 tokenId_) public view returns (uint256) {
+  function power(uint tokenId_) public view returns (uint) {
     Long l = pows[tokenId_].long;
-    uint256 amt = pows[tokenId_].amt;
-    uint256 mult = mults[l];
+    uint amt = pows[tokenId_].amt;
+    uint mult = mults[l];
     return (mult * amt) / POW_DIVISOR;
   }
 
   // user power
-  function power(address user) public view returns (uint256) {
-    uint256[] memory ids_ = ids[user];
-    uint256 p = 0;
-    for (uint256 i = 0; i < ids_.length; i++) {
-      uint256 id = ids_[i];
+  function power(address user) public view returns (uint) {
+    uint[] memory ids_ = ids[user];
+    uint p = 0;
+    for (uint i = 0; i < ids_.length; i++) {
+      uint id = ids_[i];
       if (ownerOf(id) != user) {
         continue;
       }
@@ -82,10 +79,7 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     return p;
   }
 
-  function deposit(
-    uint256 amt,
-    Long long
-  ) external nonReentrant whenNotPaused returns (uint256) {
+  function deposit(uint amt, Long long) external nonReentrant whenNotPaused returns (uint) {
     core.safeTransferFrom(msg.sender, address(this), amt);
 
     tokenId++;
@@ -102,14 +96,14 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     return tokenId;
   }
 
-  function withdraw(uint256 tokenId_) external nonReentrant whenNotPaused {
+  function withdraw(uint tokenId_) external nonReentrant whenNotPaused {
     require(ownerOf(tokenId_) == msg.sender, "VeToken/tokenId not belong you");
-    uint256 start = pows[tokenId_].start;
+    uint start = pows[tokenId_].start;
     Long long = pows[tokenId_].long;
     require(block.timestamp >= start + longs[long], "VeToken/time is't up");
 
-    uint256 amt = pows[tokenId_].amt;
-    uint256 pow = power(tokenId_);
+    uint amt = pows[tokenId_].amt;
+    uint pow = power(tokenId_);
     totalPower -= pow;
     core.safeTransfer(msg.sender, amt);
 
@@ -119,7 +113,7 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     emit Withdraw(msg.sender, amt, start, long);
   }
 
-  function transferFrom(address, address, uint256) public pure override {
+  function transferFrom(address, address, uint) public pure override {
     require(false, "VeToken/not allowed");
   }
 }

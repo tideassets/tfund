@@ -1,0 +1,2 @@
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+@layerzerolabs/solidity-examples/=lib/solidity-examples/

@@ -12,8 +12,9 @@ interface IToken is IERC20 {
   function mint(address, uint) external;
 }
 
-contract Lock is Auth {
+contract Locker is Auth {
   IToken public token;
+
   using SafeERC20 for IToken;
 
   mapping(bytes32 => uint) public remains;
@@ -30,20 +31,11 @@ contract Lock is Auth {
   event Unlock(bytes32 indexed role, address indexed usr, uint amt);
 
   modifier OnlyRole(bytes32 role) {
-    require(
-      msg.sender == addrs[role] || wards[msg.sender] == 1,
-      "Lock: OnlyRole"
-    );
+    require(msg.sender == addrs[role] || wards[msg.sender] == 1, "Lock: OnlyRole");
     _;
   }
 
-  constructor(
-    address token_,
-    address dao_,
-    address tsaDao_,
-    address team_,
-    address lpFund_
-  ) {
+  constructor(address token_, address dao_, address tsaDao_, address team_, address lpFund_) {
     token = IToken(token_);
 
     addrs["dao"] = dao_;
@@ -107,10 +99,7 @@ contract Lock is Auth {
     lpNext = amt;
   }
 
-  function _unlock(
-    bytes32 role,
-    uint start_
-  ) internal OnlyRole(role) returns (uint) {
+  function _unlock(bytes32 role, uint start_) internal OnlyRole(role) returns (uint) {
     if (block.timestamp < start_) {
       return 0;
     }

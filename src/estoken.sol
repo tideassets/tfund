@@ -2,7 +2,6 @@
 // Copyright (C) 2023
 // estoken.sol : for vesting token
 //
-
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
@@ -11,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./auth.sol";
 
-contract esToken is ERC20, Auth, ReentrancyGuard {
+contract EsToken is ERC20, Auth, ReentrancyGuard {
   struct Vest {
     uint persencond;
     uint claimed;
@@ -29,17 +28,11 @@ contract esToken is ERC20, Auth, ReentrancyGuard {
   event Claim(address indexed usr, uint amount);
   event Deposit(address indexed usr, uint amount);
 
-  constructor(
-    address token_,
-    string memory name_,
-    string memory symbol_
-  ) ERC20(name_, symbol_) {
+  constructor(address token_, string memory name_, string memory symbol_) ERC20(name_, symbol_) {
     token = IERC20(token_);
   }
 
-  function vesting(
-    uint amt
-  ) external nonReentrant whenNotPaused returns (uint) {
+  function vesting(uint amt) external nonReentrant whenNotPaused returns (uint) {
     require(amt > 0, "Val/zero-amount");
     _burn(msg.sender, amt);
     vestingId++;
@@ -84,22 +77,15 @@ contract esToken is ERC20, Auth, ReentrancyGuard {
     emit Deposit(usr, amt);
   }
 
-  function transfer(address, uint256) public pure override returns (bool) {
+  function transfer(address, uint) public pure override returns (bool) {
     return false;
   }
 
-  function transferFrom(
-    address,
-    address,
-    uint256
-  ) public pure override returns (bool) {
+  function transferFrom(address, address, uint) public pure override returns (bool) {
     return false;
   }
 
-  function mint(
-    address usr,
-    uint amt
-  ) external auth nonReentrant whenNotPaused {
+  function mint(address usr, uint amt) external auth nonReentrant whenNotPaused {
     require(amt > 0, "Val/zero-amount");
     _mint(usr, amt);
   }

@@ -2,7 +2,6 @@
 // Copyright (C) 2023
 // auth.sol : multiple auth and pause able
 //
-
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";

@@ -2,7 +2,6 @@
 // Copyright (C) 2023
 // router.sol : user operation interface
 //
-
 pragma solidity ^0.8.20;
 
 import "./auth.sol";
@@ -28,13 +27,10 @@ contract tLendRouter is Auth {
 contract tSwapRouter is Auth {
   constructor() {}
 
-  function swap(
-    address tokenA,
-    uint amtA,
-    address tokenB,
-    uint minAmtB,
-    address receiver
-  ) external returns (uint) {}
+  function swap(address tokenA, uint amtA, address tokenB, uint minAmtB, address receiver)
+    external
+    returns (uint)
+  {}
 }
 
 contract tPerpRouter is Auth {

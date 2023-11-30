@@ -2,7 +2,6 @@
 // Copyright (C) 2023
 // stake.sol : stake lp tokens for rewards
 //
-
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -33,12 +32,9 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
   RTokens public rtokens;
   mapping(address => RewarderLike) public rewarders; // key is rtoken
 
-  constructor(
-    string memory name_,
-    string memory symbol_,
-    address sToken_,
-    address esToken_
-  ) ERC20(name_, symbol_) {
+  constructor(string memory name_, string memory symbol_, address sToken_, address esToken_)
+    ERC20(name_, symbol_)
+  {
     sToken = IERC20(sToken_);
     esToken = esToken_;
     rtokens = new RTokens();
@@ -48,7 +44,7 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
     rtokens.addRtoken(rtoken);
     RewarderLike rl;
     if (isCycle) {
-      rl = RewarderLike(address(new RewarderCycle(rtoken, esToken)));
+      rl = RewarderLike(address(new RewarderStake(rtoken, esToken)));
     } else {
       rl = RewarderLike(address(new RewarderPerSecond(rtoken, esToken)));
     }
