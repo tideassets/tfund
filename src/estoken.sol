@@ -53,7 +53,7 @@ contract EsToken is ERC20, Auth {
 
   function _claimable(uint vestingId_) internal view returns (uint, bool) {
     Vest memory vest = vests[vestingId_];
-    if (vest.amt== 0) {
+    if (vest.amt == 0) {
       return (0, true);
     }
     uint d = block.timestamp - vest.start;
@@ -94,18 +94,18 @@ contract EsToken is ERC20, Auth {
     emit Deposit(usr, amt);
   }
 
+  error NoTransfer();
+  error NoTransferFrom();
+
   function transfer(address, uint) public pure override returns (bool) {
-    require(false, "TsToken/no-transfer");
-    return false;
+    revert NoTransfer();
   }
 
   function transferFrom(address, address, uint) public pure override returns (bool) {
-    require(false, "TsToken/no-transfer");
-    return false;
+    revert NoTransferFrom();
   }
 
   function mint(address usr, uint amt) external auth whenNotPaused {
-    require(amt > 0, "TsToken/zero-amount");
     _mint(usr, amt);
   }
 }

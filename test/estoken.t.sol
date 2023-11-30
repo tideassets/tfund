@@ -155,12 +155,12 @@ contract EsTokenTest is Test {
   }
 
   function testTransfer() public {
-    bool success = esToken.transfer(address(this), 10 ether);
-    assertFalse(success, "Transfer should always fail");
+    vm.expectRevert(EsToken.NoTransfer.selector);
+    esToken.transfer(address(this), 10 ether);
   }
 
   function testTransferFrom() public {
-    bool success = esToken.transferFrom(address(this), address(0), 10 ether);
-    assertFalse(success, "TransferFrom should always fail");
+    vm.expectRevert(EsToken.NoTransferFrom.selector);
+    esToken.transferFrom(address(this), address(0), 10 ether);
   }
 }
