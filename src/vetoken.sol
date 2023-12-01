@@ -21,6 +21,7 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     uint start;
     Long long;
     uint pow;
+    uint index;
   }
 
   enum Long {
@@ -85,9 +86,10 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     core.safeTransferFrom(msg.sender, address(this), amt);
 
     tokenId++;
-    Pow memory pow = Pow(amt, block.timestamp, long, 0);
-    pow.pow = power(tokenId);
+    Pow memory pow = Pow(amt, block.timestamp, long, 0, 0);
+    pow.pow = mults[long] * amt / POW_DIVISOR;
     totalPower += pow.pow;
+    pow.index = ids[msg.sender].length;
     pows[tokenId] = pow;
 
     _mint(msg.sender, tokenId);
@@ -110,6 +112,10 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     core.safeTransfer(msg.sender, amt);
 
     _burn(tokenId_);
+    uint lastId = ids[msg.sender][ids[msg.sender].length - 1];
+    ids[msg.sender][pows[tokenId_].index] = lastId;
+    pows[lastId].index = pows[tokenId_].index;
+    ids[msg.sender].pop();
     delete pows[tokenId_];
 
     emit Withdraw(msg.sender, amt, start, long);
