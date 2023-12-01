@@ -53,8 +53,8 @@ contract Vault is ReentrancyGuard, Auth {
 
   mapping(address => Ass) public asss;
   mapping(address => mapping(address => Inv)) public invs; // adv_addr => ass_addk => Inv
-  address[] invetors;
-  address[] tokens;
+  address[] public invetors;
+  address[] public tokens;
 
   TTokenLike public core; // TDT, TCAv1, TCAv2
   OracleLike public coreOracle; // oracle for core
@@ -73,6 +73,14 @@ contract Vault is ReentrancyGuard, Auth {
     }
     (, int lasstAnswer,,,) = OracleLike(coreOracle).latestRoundData();
     return lasstAnswer;
+  }
+
+  function tokensLen() public view returns (uint) {
+    return tokens.length;
+  }
+
+  function invsLen() public view returns (uint) {
+    return invetors.length;
   }
 
   function setAsset(address ass, uint min, uint max, address oracle) external auth {

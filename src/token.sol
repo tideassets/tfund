@@ -6,11 +6,12 @@ pragma solidity ^0.8.20;
 
 import "@layerzerolabs/solidity-examples/contracts/token/oft/v2/fee/BaseOFTWithFee.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Auth} from "./auth.sol";
 
 // new version of Ownable constructor must provide the owner address, so use abstract contract to avoid compilation error
-abstract contract OFTWithFee is BaseOFTWithFee, ERC20 {
+abstract contract OFTWithFee is BaseOFTWithFee, ERC20Permit {
   uint internal immutable ld2sdRate;
 
   constructor(
@@ -18,7 +19,7 @@ abstract contract OFTWithFee is BaseOFTWithFee, ERC20 {
     string memory _symbol,
     uint8 _sharedDecimals,
     address _lzEndpoint
-  ) ERC20(_name, _symbol) BaseOFTWithFee(_sharedDecimals, _lzEndpoint) {
+  ) ERC20(_name, _symbol) ERC20Permit(_name) BaseOFTWithFee(_sharedDecimals, _lzEndpoint) {
     uint8 decimals = decimals();
     require(_sharedDecimals <= decimals, "OFTWithFee: sharedDecimals must be <= decimals");
     ld2sdRate = 10 ** (decimals - _sharedDecimals);
@@ -203,5 +204,18 @@ contract TToken is OFTWithFee, Auth {
 
   function burn(address from, uint amount) external auth {
     _burn(from, amount);
+  }
+
+  // --- Alias --- for Dai
+  function push(address usr, uint wad) external {
+    transferFrom(msg.sender, usr, wad);
+  }
+
+  function pull(address usr, uint wad) external {
+    transferFrom(usr, msg.sender, wad);
+  }
+
+  function move(address src, address dst, uint wad) external {
+    transferFrom(src, dst, wad);
   }
 }
