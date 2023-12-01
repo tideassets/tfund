@@ -109,9 +109,10 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     uint amt = pows[tokenId_].amt;
     uint pow = power(tokenId_);
     totalPower -= pow;
-    core.safeTransfer(msg.sender, amt);
 
+    core.safeTransfer(msg.sender, amt);
     _burn(tokenId_);
+
     uint lastId = ids[msg.sender][ids[msg.sender].length - 1];
     ids[msg.sender][pows[tokenId_].index] = lastId;
     pows[lastId].index = pows[tokenId_].index;
