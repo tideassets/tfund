@@ -234,30 +234,73 @@ contract Vault is ReentrancyGuard, Auth {
     }
   }
 
-  function buy(address ass, address to, uint amt) external returns (uint) {
-    return _buy(ass, to, amt, true);
+  function buyExactOut(address ass, address to, uint maxIn, uint out)
+    external
+    whenNotPaused
+    returns (uint)
+  {
+    require(asss[ass].max > 0, "Vat/asset not in whitelist");
+
+    (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
+    uint need = out * uint(corePrice()) / uint(assPrice);
+    uint fee = buyFee(ass, need);
+    need += fee;
+    require(need <= maxIn, "Vat/amount in not enough");
+    IERC20 token = IERC20(ass);
+    token.safeTransferFrom(msg.sender, address(this), need);
+    core.mint(to, out);
+    return need;
+  }
+
+  function buyExactIn(address ass, address to, uint amt, uint minOut)
+    external
+    whenNotPaused
+    returns (uint)
+  {
+    uint max = _buy(ass, to, amt, true);
+    require(max >= minOut, "Nat/amount out is too large");
+    return max;
   }
 
   // buy tdt, sell amt of ass buy tdt
   function _buy(address ass, address to, uint amt, bool useFee) internal returns (uint) {
     require(asss[ass].max > 0, "Vat/asset not in whitelist");
 
-    IERC20 token = IERC20(ass);
-    token.safeTransferFrom(msg.sender, address(this), amt);
-
     uint fee = 0;
     if (useFee) {
       fee = buyFee(ass, amt);
     }
+
     (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
     uint max = uint(assPrice) * (amt - fee) / uint(corePrice());
+
+    IERC20 token = IERC20(ass);
+    token.safeTransferFrom(msg.sender, address(this), amt);
 
     core.mint(to, max);
     return max;
   }
 
+  function sellExactOut(address ass, address to, uint maxIn, uint out)
+    external
+    whenNotPaused
+    returns (uint)
+  {
+    require(asss[ass].max > 0, "Vat/asset not in whitelist");
+    (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
+    uint fee = sellFee(ass, out);
+    uint need = uint(assPrice * int(out + fee) / corePrice());
+    require(need <= maxIn, "Val/amount in is not enough");
+
+    core.burn(msg.sender, need);
+
+    IERC20 token = IERC20(ass);
+    token.safeTransfer(to, out);
+    return need;
+  }
+
   // sell core for ass, amt is tdt amount for sell
-  function sell(address ass, address to, uint amt)
+  function sellExactIn(address ass, address to, uint amt, uint minOut)
     external
     nonReentrant
     whenNotPaused
@@ -272,6 +315,7 @@ contract Vault is ReentrancyGuard, Auth {
 
     uint fee = sellFee(ass, max);
     max = max - fee;
+    require(max >= minOut, "Vat/amount out is too large");
 
     IERC20 token = IERC20(ass);
     token.safeTransfer(to, max);

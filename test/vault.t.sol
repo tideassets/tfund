@@ -20,17 +20,27 @@ contract MockOracle is OracleLike {
 }
 
 interface IVault {
-  function buy(address ass, address to, uint amt) external returns (uint);
-  function sell(address ass, address to, uint amt) external returns (uint);
+  function buyExactIn(address ass, address to, uint amt, uint minOut) external returns (uint);
+  function buyExactOut(address ass, address to, uint maxIn, uint out) external returns (uint);
+  function sellExactIn(address ass, address to, uint amt, uint minOut) external returns (uint);
+  function sellExactOut(address ass, address to, uint maxIn, uint out) external returns (uint);
 }
 
 contract User is Auth {
-  function buyTDT(IVault val, address ass, uint amt) public returns (uint) {
-    return val.buy(ass, address(this), amt);
+  function buyTDTExactIn(IVault val, address ass, uint amt, uint minOut) public returns (uint) {
+    return val.buyExactIn(ass, address(this), amt, minOut);
   }
 
-  function sellTDT(IVault val, address ass, uint amt) public returns (uint) {
-    return val.sell(ass, address(this), amt);
+  function buyTDTExactOut(IVault val, address ass, uint amt, uint minOut) public returns (uint) {
+    return val.buyExactOut(ass, address(this), amt, minOut);
+  }
+
+  function sellTDTExactIn(IVault val, address ass, uint amt, uint minOut) public returns (uint) {
+    return val.sellExactIn(ass, address(this), amt, minOut);
+  }
+
+  function sellTDTExactOut(IVault val, address ass, uint maxIn, uint out) public returns (uint) {
+    return val.sellExactOut(ass, address(this), maxIn, out);
   }
 
   function approve(IERC20 token, address user, uint amt) external auth {
@@ -166,8 +176,67 @@ contract VaultTest is Test {
     assertEq(TDT.balanceOf(address(this)), 10000 ether);
   }
 
-  function testBuyFee() public {}
-  function testBuy() public {}
-  function testSellFee() public {}
-  function testSell() public {}
+  function testBuyFee() public {
+    testInitAssets();
+    uint p = val.assetPersent(address(T1));
+    console2.log("persent", p);
+    uint fee = val.buyFee(address(T1), 1000 ether);
+    console2.log("fee", fee);
+    assertTrue(fee > 0, "fee should be greater than zero");
+  }
+
+  function testBuyExactIn() public {
+    testInitAssets();
+    assertEq(TDT.balanceOf(address(u1)), 0, "should zero TDT");
+    uint fee = val.buyFee(address(T1), 1000 ether);
+    console2.log("fee", fee);
+    u1.buyTDTExactIn(IVault(address(val)), address(T1), 1000 ether, 0);
+    console2.log("TDT", TDT.balanceOf(address(u1)));
+    assertTrue(TDT.balanceOf(address(u1)) < 2000 ether, "should less then 2000 TDT");
+    assertEq(TDT.balanceOf(address(u1)), (1000 ether - fee) * 2, "should get same TDT");
+  }
+
+  function testBuyExactOut() public {
+    testInitAssets();
+    assertEq(TDT.balanceOf(address(u1)), 0, "should zero TDT");
+    uint balance = T1.balanceOf(address(u1));
+    assertEq(balance, 10000 ether, "should get 10000 T1");
+    uint fee = val.buyFee(address(T1), 500 ether);
+    u1.buyTDTExactOut(IVault(address(val)), address(T1), 1000 ether, 1000 ether);
+    assertEq(TDT.balanceOf(address(u1)), 1000 ether, "should get 1000 TDT");
+    assertEq(T1.balanceOf(address(u1)), balance - 500 ether - fee, "should get same T1");
+  }
+
+  function testSellFee() public {
+    testInitAssets();
+    uint p = val.assetPersent(address(T1));
+    console2.log("persent", p);
+    uint fee = val.sellFee(address(T1), 1000 ether);
+    console2.log("fee", fee);
+    assertTrue(fee > 0, "fee should be greater than zero");
+  }
+
+  function testSellExactIn() public {
+    testInitAssets();
+    testBuyExactIn();
+
+    uint tdt_balance = TDT.balanceOf(address(u1));
+    uint t1_balance = T1.balanceOf(address(u1));
+    uint fee = val.sellFee(address(T1), 50 ether);
+    uint out = u1.sellTDTExactIn(IVault(address(val)), address(T1), 100 ether, 0);
+    assertEq(tdt_balance - 100 ether, TDT.balanceOf(address(u1)), "should get same TDT");
+    assertEq(T1.balanceOf(address(u1)), t1_balance - fee + out, "should get same T1");
+  }
+
+  function testSellExactOut() public {
+    testInitAssets();
+    testBuyExactIn();
+
+    uint tdt_balance = TDT.balanceOf(address(u1));
+    uint t1_balance = T1.balanceOf(address(u1));
+    uint fee = val.sellFee(address(T1), 50 ether);
+    uint out = u1.sellTDTExactOut(IVault(address(val)), address(T1), 200 ether, 100 ether);
+    assertEq(tdt_balance - out, TDT.balanceOf(address(u1)), "should get same TDT");
+    assertEq(T1.balanceOf(address(u1)), t1_balance - fee + 100 ether, "should get same T1");
+  }
 }
