@@ -42,7 +42,7 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
   event Deposit(address indexed usr, uint amt, uint start, Long long);
   event Withdraw(address indexed usr, uint amt, uint start, Long long);
 
-  constructor(string memory name_, string memory symbol_) ERC721(name_, symbol_) {
+  constructor(address core_, string memory name_, string memory symbol_) ERC721(name_, symbol_) {
     longs[Long.ONEMON] = 30 days;
     longs[Long.SIXMON] = 180 days;
     longs[Long.ONEYEAR] = 365 days;
@@ -56,6 +56,8 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     mults[Long.ONEYEAR] = 1344889;
     mults[Long.TWOYEAR] = 1808726;
     mults[Long.FOURYEAR] = 3271490;
+
+    core = IERC20(core_);
   }
 
   function power(uint tokenId_) public view returns (uint) {
