@@ -4,249 +4,227 @@
 //
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./auth.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Auth} from "./auth.sol";
 
 interface EsTokenLike {
   function deposit(address, uint) external;
 }
 
-contract RTokens is Auth {
-  address[] public rtokens;
-  mapping(address => uint) public rtokenIndex;
+// interface IRewardValut {
+//   function getReward(address rtoken, uint cycleId) external view returns (uint);
+// }
 
-  function count() public view returns (uint) {
-    return rtokens.length;
-  }
+interface Staker is IERC20 {}
 
-  function addRtoken(address rtoken) external auth {
-    _addRtoken(rtoken);
-  }
-
-  function delRtoken(address rtoken) external auth {
-    _delRtoken(rtoken);
-  }
-
-  function _addRtoken(address rtoken) internal virtual {
-    if (rtokenIndex[rtoken] == 0) {
-      rtokens.push(rtoken);
-      rtokenIndex[rtoken] = rtokens.length;
-    }
-  }
-
-  function _delRtoken(address rtoken) internal virtual {
-    if (rtokenIndex[rtoken] > 0) {
-      uint index = rtokenIndex[rtoken] - 1;
-      rtokens[index] = rtokens[rtokens.length - 1];
-      rtokenIndex[address(rtokens[index])] = index + 1;
-      rtokens.pop();
-      rtokenIndex[rtoken] = 0;
-    }
-  }
-}
-
-abstract contract BaseRewarder is Auth, ReentrancyGuard {
+abstract contract BaseRewarder is Auth {
   using SafeERC20 for IERC20;
 
   IERC20 public rewardToken;
+  Staker public staker;
+  address public rewardValut;
   EsTokenLike public esToken;
 
-  uint public useEs; // if use esToken for core
   uint public constant ONE = 10 ** 18; // one coin
 
-  constructor(address rt, address est) {
+  constructor(address rt, address staker_, address rv) {
     rewardToken = IERC20(rt);
-    esToken = EsTokenLike(est);
+    staker = Staker(staker_);
+    rewardValut = rv;
   }
 
-  function useEsToken() external auth {
-    useEs = 1;
+  modifier onlyStaker() {
+    require(msg.sender == address(staker), "Rewarder/not-staker");
+    _;
   }
 
   event SendReward(uint amount);
   event Claim(address indexed usr, address recv, uint amount);
 
-  function stake(address usr, uint amt) external nonReentrant whenNotPaused auth {
+  function stake(address usr, uint amt) external onlyStaker {
     _stake(usr, amt);
   }
 
-  function unstake(address usr, uint amt) external nonReentrant whenNotPaused auth {
+  function unstake(address usr, uint amt) external onlyStaker {
     _unstake(usr, amt);
   }
+
+  //   function update(address usr, uint blc, uint total) external onlyStaker {
+  //     _update(usr, blc, total);
+  //   }
+  // //
+  function setEstoken(address est) external auth {
+    esToken = EsTokenLike(est);
+  }
+
+  // function _update(address usr, uint blc, uint total) internal virtual;
 
   function _stake(address usr, uint amt) internal virtual;
 
   function _unstake(address usr, uint amt) internal virtual;
 
-  function claim(address usr, address recv) external nonReentrant whenNotPaused {
+  function claim(address usr, address recv) external {
     uint amount = _claim(usr);
-    if (useEs == 1) {
+    if (address(esToken) != address(0)) {
       IERC20(rewardToken).approve(address(esToken), amount);
       esToken.deposit(recv, amount);
     } else {
-      IERC20(rewardToken).transfer(recv, amount);
+      IERC20(rewardToken).safeTransferFrom(rewardValut, recv, amount);
     }
     emit Claim(usr, recv, amount);
   }
 
   function _claim(address usr) internal virtual returns (uint);
 
-  function _claim(address usr, uint amt) internal virtual returns (uint);
-
   function claimable(address usr) public view virtual returns (uint);
-
-  function sendReward(uint amount) external virtual;
-
-  function _newCycle() internal virtual {}
 }
 
-contract RewarderStake is BaseRewarder {
+contract RewarderCycle is BaseRewarder {
   using SafeERC20 for IERC20;
 
   uint public CYCLE = 7 days;
   uint cycleId;
   uint public totalStakes;
 
-  mapping(address => mapping(uint => uint)) public usrStakes;
-  mapping(uint => uint) public oneRewardPerCycle;
-  mapping(uint => uint) public cycleRewards;
-  mapping(address => uint) public notClaimed;
-  mapping(address => uint) public updatedCycle;
+  // key is cycle id, value is reward per stake one
+  mapping(uint => uint) public osr;
+  // key1 is user, key2 is cycle id,  value is  stake
+  mapping(address => mapping(uint => uint)) public us;
+  // key is user, value is claimeded cycle id
+  mapping(address => uint) public uccid;
 
-  constructor(address rt, address est) BaseRewarder(rt, est) {}
+  uint public constant MIN = 1;
 
-  function sendReward(uint amount) external override nonReentrant whenNotPaused auth {
-    // IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
-    cycleRewards[cycleId] += amount;
-    _newCycle();
-    emit SendReward(amount);
-  }
+  constructor(address rt, address stk, address rv) BaseRewarder(rt, stk, rv) {}
 
-  function _newCycle() internal override {
-    uint amount = cycleRewards[cycleId];
-    oneRewardPerCycle[cycleId] = (amount * ONE) / totalStakes;
+  function _newCycle(uint rps) internal {
     cycleId++;
+
+    // uint ramt = rewardValut.getReward(address(rewardToken), cycleId);
+    osr[cycleId] = rps; //(ramt * ONE) / totalStakes;
+    totalStakes = staker.totalSupply();
   }
 
-  function _stake(address usr, uint amt) internal override {
-    totalStakes += amt;
-    uint cid = cycleId;
-    usrStakes[usr][cid + 1] += amt;
+  function newCycle(uint rps) external {
+    _newCycle(rps);
+  }
+
+  function _stake(address usr, uint) internal override {
+    us[usr][cycleId + 1] = staker.balanceOf(usr);
   }
 
   function _unstake(address usr, uint amt) internal override {
-    totalStakes += amt;
-    uint cid = cycleId;
-    usrStakes[usr][cid] -= amt;
+    totalStakes -= amt;
+    uint s = us[usr][cycleId];
+    if (s == 0) {
+      s = staker.balanceOf(usr);
+      us[usr][cycleId] = s;
+    }
+    if (s == 0) {
+      return;
+    }
+    s -= amt;
+    if (s == 0) {
+      s = MIN;
+    }
+    us[usr][cycleId] = s;
   }
 
   function claimable(address usr) public view override returns (uint) {
-    uint ucid = updatedCycle[usr] + 1;
+    uint ucid = uccid[usr];
     uint cid = cycleId;
     uint amount = 0;
-    mapping(uint => uint) storage usrStakes_ = usrStakes[usr];
+    mapping(uint => uint) storage us_ = us[usr];
     for (uint i = ucid; i < cid; i++) {
-      amount += (usrStakes_[i] * oneRewardPerCycle[i]) / ONE;
+      uint s = us_[i];
+      if (s == 0) {
+        s = us_[i - 1];
+      }
+      if (s == MIN) {
+        s = 0;
+      }
+      amount += (s * osr[i]) / ONE;
     }
     return amount;
   }
 
-  function _claim(address usr) internal override returns (uint) {
-    uint able = claimable(usr);
-    require(able > 0, "Rewarder/no-reward");
-    updatedCycle[usr] = cycleId;
-    uint not = notClaimed[usr];
-    notClaimed[usr] = 0;
-    return not + able;
+  function _clear(address usr) internal {
+    uint ucid = uccid[usr];
+    uint cid = cycleId;
+    mapping(uint => uint) storage us_ = us[usr];
+    for (uint i = ucid; i < cid; i++) {
+      delete us_[i];
+    }
+    uccid[usr] = cycleId;
   }
 
-  function _claim(address usr, uint amt) internal override returns (uint) {
+  function _claim(address usr) internal override returns (uint) {
     uint amount = claimable(usr);
-    require(amount > amt, "Rewarder/no-reward");
-    updatedCycle[usr] = cycleId;
-    notClaimed[usr] += amount - amt;
-    return amt;
+    _clear(usr);
+    return amount;
   }
 }
 
 contract RewarderPerSecond is BaseRewarder {
   using SafeERC20 for IERC20;
 
-  uint public totalAccumulatedReward;
   uint public rewardPerSecond;
 
-  mapping(address => uint) public usrStakes;
   mapping(address => uint) public usrUpdateTime;
   mapping(address => uint) public usrAccumulatedReward;
 
-  constructor(address rt, address est) BaseRewarder(rt, est) {}
+  constructor(address rt, address stk, address rv) BaseRewarder(rt, stk, rv) {}
 
   function setRewardPerSecond(uint amount) external auth {
     rewardPerSecond = amount;
   }
 
-  function _stake(address usr, uint amt) internal override {
+  function _stake(address usr, uint) internal override {
     _update(usr);
-    usrStakes[usr] += amt;
   }
 
-  function _unstake(address usr, uint amt) internal override {
+  function _unstake(address usr, uint) internal override {
     _update(usr);
-    usrStakes[usr] -= amt;
-  }
-
-  function sendReward(uint amount) external override nonReentrant whenNotPaused {
-    IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amount);
-    emit SendReward(amount);
   }
 
   function _update(address usr) internal {
-    uint amt = accumulatedAmount(usr);
-    usrAccumulatedReward[usr] += amt;
+    uint u = block.timestamp - usrUpdateTime[usr];
+    uint amt = accumulatedAmount(usr, u);
+    usrAccumulatedReward[usr] = amt;
     usrUpdateTime[usr] = block.timestamp;
-    totalAccumulatedReward += amt;
   }
 
   function claimable(address usr) public view override returns (uint) {
-    uint amt = accumulatedAmount(usr);
-    uint reward = (amt * rewardPerSecond) / totalAccumulatedReward;
+    uint u = block.timestamp - usrUpdateTime[usr];
+    uint amt = accumulatedAmount(usr, u);
+    uint reward = amt * rewardPerSecond / ONE;
     return reward;
   }
 
-  function accumulatedAmount(address usr) public view returns (uint) {
-    uint ut = usrUpdateTime[usr];
+  function accumulatedAmount(address usr, uint duration) public view returns (uint) {
     uint amt = usrAccumulatedReward[usr];
-    amt += (block.timestamp - ut) * usrStakes[usr];
+    amt += duration * staker.balanceOf(usr);
     return amt;
   }
 
   function _claim(address usr) internal override returns (uint) {
     _update(usr);
 
-    uint amt = accumulatedAmount(usr);
-    require(amt > 0, "Rewarder/no-reward");
-
+    uint reward = claimable(usr);
     usrAccumulatedReward[usr] = 0;
-    totalAccumulatedReward -= amt;
-
-    uint rwd = (amt * rewardPerSecond) / totalAccumulatedReward;
-    return rwd;
-  }
-
-  function _claim(address usr, uint amt) internal override returns (uint) {
-    require(amt > 0, "Rewarder/zero amt");
-
-    _update(usr);
-    uint ca = accumulatedAmount(usr);
-    require(ca > 0, "Rewarder/no-accumalated");
-
-    uint rca = (amt * totalAccumulatedReward) / rewardPerSecond;
-    require(ca > rca, "Rewarder/no-acculumated");
-    usrAccumulatedReward[usr] = ca - rca;
-    totalAccumulatedReward -= rca;
-
-    return amt;
+    return reward;
   }
 }
+
+// 抵押资产,获取排放奖励
+// 抵押方式: 1. 周期性抵押; 2. 持续抵押
+// 周期性抵押: 每个周期结束时,计算每个周期的奖励,并将奖励存入下个周期
+// 持续抵押: 每次抵押或解押时,计算奖励,并将奖励存入下个周期
+// 周期性抵押的奖励计算方式: 周期奖励 = 周期奖励总量 / 总抵押量 * 用户抵押量
+// 持续抵押的奖励计算方式: 奖励 = OATP(one asset token one second)每秒奖励 / 总抵押累积量 * 用户抵押累积量
+// 抵押累积量就是多少个OATP累积的量. 比如, OATP是1, 如果100个币抵押100秒, 则抵押累积量是10000
+// 奖励代币可以是任意ERC20代币或者ES代币, 如果奖励代币是ES代币,则奖励代币会自动存入ES代币合约
+// 奖励代币和抵押代币可以是同一个代币, 也可以是不同的代币. 但是抵押代币必须是ERC20代币, 如果是NFT代币, 则需要先转换成ERC20代币
+// 奖励代币需要从奖励金库地址中获取, 奖励金库地址可以是任意地址, 但是需要先将奖励代币存入奖励金库地址
+// 一种抵押代币可以有多个奖励代币

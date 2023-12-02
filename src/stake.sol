@@ -9,45 +9,69 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
-import "./reward.sol";
+
+contract RTokens is Auth {
+  address[] public rtokens;
+  mapping(address => uint) public rtokenIndex;
+
+  function count() public view returns (uint) {
+    return rtokens.length;
+  }
+
+  function addRtoken(address rtoken) external auth {
+    _addRtoken(rtoken);
+  }
+
+  function delRtoken(address rtoken) external auth {
+    _delRtoken(rtoken);
+  }
+
+  function _addRtoken(address rtoken) internal virtual {
+    if (rtokenIndex[rtoken] == 0) {
+      rtokens.push(rtoken);
+      rtokenIndex[rtoken] = rtokens.length;
+    }
+  }
+
+  function _delRtoken(address rtoken) internal virtual {
+    if (rtokenIndex[rtoken] == 0) {
+      return;
+    }
+    if (rtokens.length == 1) {
+      delete rtokenIndex[rtoken];
+      rtokens.pop();
+      return;
+    }
+    uint index = rtokenIndex[rtoken] - 1;
+    rtokens[index] = rtokens[rtokens.length - 1];
+    rtokenIndex[rtokens[index]] = index + 1;
+    rtokens.pop();
+    delete rtokenIndex[rtoken];
+  }
+}
 
 interface RewarderLike {
   function stake(address, uint) external;
 
   function unstake(address, uint) external;
-
-  function claim(address, uint) external;
-
-  function claim(address) external;
-
-  function sendReward(address, uint) external;
 }
 
 contract Stakex is ERC20, ReentrancyGuard, Auth {
   using SafeERC20 for IERC20;
 
-  IERC20 public sToken;
-  address public esToken;
+  IERC20 public sktToken;
 
   RTokens public rtokens;
   mapping(address => RewarderLike) public rewarders; // key is rtoken
 
-  constructor(string memory name_, string memory symbol_, address sToken_, address esToken_)
-    ERC20(name_, symbol_)
-  {
-    sToken = IERC20(sToken_);
-    esToken = esToken_;
+  constructor(string memory name_, string memory symbol_, address stkToken_) ERC20(name_, symbol_) {
+    sktToken = IERC20(stkToken_);
     rtokens = new RTokens();
   }
 
-  function addRtoken(address rtoken, bool isCycle) external auth {
+  function addRtoken(address rtoken, address rewarder) external auth {
     rtokens.addRtoken(rtoken);
-    RewarderLike rl;
-    if (isCycle) {
-      rl = RewarderLike(address(new RewarderStake(rtoken, esToken)));
-    } else {
-      rl = RewarderLike(address(new RewarderPerSecond(rtoken, esToken)));
-    }
+    RewarderLike rl = RewarderLike(rewarder);
     rewarders[rtoken] = rl;
   }
 
@@ -58,10 +82,10 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
 
   function stake(address to, uint amt) external nonReentrant {
     require(amt > 0, "Stake/zero-amount");
-    sToken.transferFrom(msg.sender, address(this), amt);
-    _mint(to, amt);
 
+    sktToken.safeTransferFrom(msg.sender, address(this), amt);
     _stake(to, amt);
+    _mint(to, amt);
   }
 
   function _stake(address to, uint amt) internal {
@@ -75,10 +99,10 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
 
   function unstake(address to, uint amt) external nonReentrant {
     require(amt > 0, "Stake/zero-amount");
-    _burn(msg.sender, amt);
-    sToken.transfer(to, amt);
 
     _unstake(to, amt);
+    _burn(msg.sender, amt);
+    sktToken.safeTransfer(to, amt);
   }
 
   function _unstake(address to, uint amt) internal {
@@ -90,10 +114,10 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
     }
   }
 
-  function distribute(address rtoken, uint amt) external auth {
-    RewarderLike rl = rewarders[rtoken];
-    IERC20 token = IERC20(rtoken);
-    token.safeTransferFrom(msg.sender, address(rl), amt);
-    rl.sendReward(rtoken, amt);
-  }
+  // function distribute(address rtoken, uint amt) external auth {
+  //   RewarderLike rl = rewarders[rtoken];
+  //   IERC20 token = IERC20(rtoken);
+  //   token.safeTransferFrom(msg.sender, address(rl), amt);
+  //   rl.sendReward(rtoken, amt);
+  // }
 }
