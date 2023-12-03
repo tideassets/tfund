@@ -75,14 +75,14 @@ contract LockerTest is Test {
   }
 
   function testUnlock() public {
-    // team.unlock(address(locker));
-    // assertTrue(IERC20(token).balanceOf(address(team)) == 0, "team balance should be 0");
-    // dao.unlock(address(locker));
-    // assertTrue(IERC20(token).balanceOf(address(dao)) > 0, "dao balance should be >  0");
-    // tsaDao.unlock(address(locker));
-    // assertTrue(IERC20(token).balanceOf(address(tsaDao)) == 0, "tsadao balance should be 0");
-    // lpFund.unlock(address(locker));
-    // assertTrue(IERC20(token).balanceOf(address(lpFund)) == 0, "lpfund balance should be 0");
+    team.unlock(address(locker));
+    assertTrue(IERC20(token).balanceOf(address(team)) == 0, "team balance should be 0");
+    dao.unlock(address(locker));
+    assertTrue(IERC20(token).balanceOf(address(dao)) > 0, "dao balance should be >  0");
+    tsaDao.unlock(address(locker));
+    assertTrue(IERC20(token).balanceOf(address(tsaDao)) == 0, "tsadao balance should be 0");
+    lpFund.unlock(address(locker));
+    assertTrue(IERC20(token).balanceOf(address(lpFund)) == 0, "lpfund balance should be 0");
 
     assertEq(locker.remains("team"), 1e7 * 1e18, "team remains should be 1e7 * 1e18");
     assertEq(locker.remains("dao"), 8e6 * 1e18, "dao remains should be 8e6 * 1e18");
