@@ -4,13 +4,12 @@
 //
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./auth.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Auth} from "./auth.sol";
 
-contract VeToken is Auth, ERC721, ReentrancyGuard {
+contract VeToken is Auth, ERC721 {
   using SafeERC20 for IERC20;
 
   IERC20 public core;
@@ -82,7 +81,7 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     return p;
   }
 
-  function deposit(uint amt, Long long) external nonReentrant whenNotPaused returns (uint) {
+  function deposit(uint amt, Long long) external whenNotPaused returns (uint) {
     core.safeTransferFrom(msg.sender, address(this), amt);
 
     tokenId++;
@@ -100,7 +99,7 @@ contract VeToken is Auth, ERC721, ReentrancyGuard {
     return tokenId;
   }
 
-  function withdraw(uint tokenId_) external nonReentrant whenNotPaused {
+  function withdraw(uint tokenId_) external whenNotPaused {
     require(ownerOf(tokenId_) == msg.sender, "VeToken/tokenId not belong you");
     uint start = pows[tokenId_].start;
     Long long = pows[tokenId_].long;

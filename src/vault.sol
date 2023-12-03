@@ -4,22 +4,16 @@
 //
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./auth.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Auth} from "./auth.sol";
 
 interface InvLike {
   function deposit(address[] memory asss_, uint[] memory amts_, address reward) external;
-
   function withdraw(address[] memory asss_, uint[] memory amts_) external;
-
   function claim() external;
-
   function depositedAmount(address usr, address ass) external view returns (uint);
-
   function rewards(address usr, address ass) external view returns (uint);
-
   function rewardTokens(address usr) external view returns (address[] memory);
 }
 
@@ -32,11 +26,10 @@ interface OracleLike {
 
 interface TTokenLike {
   function mint(address account, uint amt) external;
-
   function burn(address account, uint amt) external;
 }
 
-contract Vault is ReentrancyGuard, Auth {
+contract Vault is Auth {
   using SafeERC20 for IERC20;
 
   struct Ass {
@@ -183,12 +176,7 @@ contract Vault is ReentrancyGuard, Auth {
     return _assetPersent(ass, 0);
   }
 
-  function deposit(address[] calldata asss_, uint[] calldata amts_, address inv_)
-    external
-    auth
-    nonReentrant
-    whenNotPaused
-  {
+  function deposit(address[] calldata asss_, uint[] calldata amts_, address inv_) external auth {
     for (uint i = 0; i < asss_.length; i++) {
       uint amt = amts_[i];
       uint max = invetMax(asss_[i], inv_);
@@ -199,11 +187,7 @@ contract Vault is ReentrancyGuard, Auth {
     InvLike(inv_).deposit(asss_, amts_, address(this));
   }
 
-  function withdraw(address[] memory asss_, uint[] memory amts_, address inv_)
-    external
-    auth
-    nonReentrant
-  {
+  function withdraw(address[] memory asss_, uint[] memory amts_, address inv_) external auth {
     InvLike(inv_).withdraw(asss_, amts_);
   }
 
@@ -305,7 +289,6 @@ contract Vault is ReentrancyGuard, Auth {
   // sell core for ass, amt is tdt amount for sell
   function sellExactIn(address ass, address to, uint amt, uint minOut)
     external
-    nonReentrant
     whenNotPaused
     returns (uint)
   {
