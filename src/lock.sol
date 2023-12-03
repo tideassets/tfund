@@ -4,9 +4,8 @@
 
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./auth.sol";
+import {IERC20, SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Auth} from "./auth.sol";
 
 interface IToken is IERC20 {
   function mint(address, uint) external;
@@ -47,9 +46,11 @@ contract Locker is Auth {
     cycle["tsaDao"] = 30 days;
     cycle["team"] = 30 days;
     cycle["lpFund"] = 7 days;
+  }
 
+  function init() external auth {
     token.mint(address(this), 1e8 * ONE);
-    token.safeTransfer(dao_, 2e6 * ONE);
+    token.safeTransfer(addrs["dao"], 2e6 * ONE);
 
     remains["tsaDao"] = 1e7 * ONE;
     remains["team"] = 1e7 * ONE;
@@ -109,7 +110,12 @@ contract Locker is Auth {
     }
 
     uint nth = (block.timestamp - start_) / cycle[role];
-    uint amt = cycleMinted[role] * nth - minted[role];
+    uint amt = 0;
+    if (role == "lpFund") {
+      amt = lpNext * nth - minted[role];
+    } else {
+      amt = cycleMinted[role] * nth - minted[role];
+    }
 
     if (remains[role] < amt) {
       amt = remains[role];
@@ -123,7 +129,7 @@ contract Locker is Auth {
     token.safeTransfer(addrs[role], amt);
     minted[role] += amt;
 
-    emit Unlock(role, addrs["lpFund"], amt);
+    emit Unlock(role, addrs[role], amt);
     return amt;
   }
 }
