@@ -4,11 +4,9 @@
 //
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./auth.sol";
+import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Auth} from "./auth.sol";
 
 contract RTokens is Auth {
   address[] public rtokens;
@@ -56,7 +54,7 @@ interface RewarderLike {
   function unstake(address, uint) external;
 }
 
-contract Stakex is ERC20, ReentrancyGuard, Auth {
+contract Stakex is ERC20, Auth {
   using SafeERC20 for IERC20;
 
   IERC20 public sktToken;
@@ -80,7 +78,7 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
     delete rewarders[rtoken];
   }
 
-  function stake(address to, uint amt) external nonReentrant {
+  function stake(address to, uint amt) external {
     require(amt > 0, "Stake/zero-amount");
 
     sktToken.safeTransferFrom(msg.sender, address(this), amt);
@@ -97,7 +95,7 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
     }
   }
 
-  function unstake(address to, uint amt) external nonReentrant {
+  function unstake(address to, uint amt) external {
     require(amt > 0, "Stake/zero-amount");
 
     _unstake(to, amt);
@@ -113,11 +111,4 @@ contract Stakex is ERC20, ReentrancyGuard, Auth {
       rewarders_[rt].unstake(to, amt);
     }
   }
-
-  // function distribute(address rtoken, uint amt) external auth {
-  //   RewarderLike rl = rewarders[rtoken];
-  //   IERC20 token = IERC20(rtoken);
-  //   token.safeTransferFrom(msg.sender, address(rl), amt);
-  //   rl.sendReward(rtoken, amt);
-  // }
 }

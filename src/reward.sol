@@ -12,10 +12,6 @@ interface EsTokenLike {
   function deposit(address, uint) external;
 }
 
-// interface IRewardValut {
-//   function getReward(address rtoken, uint cycleId) external view returns (uint);
-// }
-
 interface Staker is IERC20 {}
 
 abstract contract BaseRewarder is Auth {
@@ -50,15 +46,9 @@ abstract contract BaseRewarder is Auth {
     _unstake(usr, amt);
   }
 
-  //   function update(address usr, uint blc, uint total) external onlyStaker {
-  //     _update(usr, blc, total);
-  //   }
-  // //
   function setEstoken(address est) external auth {
     esToken = EsTokenLike(est);
   }
-
-  // function _update(address usr, uint blc, uint total) internal virtual;
 
   function _stake(address usr, uint amt) internal virtual;
 
@@ -99,9 +89,8 @@ contract RewarderCycle is BaseRewarder {
   constructor(address rt, address stk, address rv) BaseRewarder(rt, stk, rv) {}
 
   function _newCycle(uint rps) internal {
-    cycleId++;
-
     // uint ramt = rewardValut.getReward(address(rewardToken), cycleId);
+    cycleId++;
     osr[cycleId] = rps; //(ramt * ONE) / totalStakes;
     totalStakes = staker.totalSupply();
   }
@@ -110,10 +99,13 @@ contract RewarderCycle is BaseRewarder {
     _newCycle(rps);
   }
 
-  function _stake(address usr, uint) internal override {
-    us[usr][cycleId + 1] = staker.balanceOf(usr);
+  // _stake add stake amount to next cycle
+  function _stake(address usr, uint amt) internal override {
+    us[usr][cycleId + 1] = amt;
+    uccid[usr] = cycleId;
   }
 
+  // _unstake reduce stake amount from current cycle
   function _unstake(address usr, uint amt) internal override {
     totalStakes -= amt;
     uint s = us[usr][cycleId];
@@ -135,14 +127,21 @@ contract RewarderCycle is BaseRewarder {
     uint ucid = uccid[usr];
     uint cid = cycleId;
     uint amount = 0;
+    uint last = 0;
     mapping(uint => uint) storage us_ = us[usr];
     for (uint i = ucid; i < cid; i++) {
       uint s = us_[i];
       if (s == 0) {
         s = us_[i - 1];
       }
+      if (s == 0) {
+        s = last;
+      }
       if (s == MIN) {
         s = 0;
+      }
+      if (s > 0) {
+        last = s;
       }
       amount += (s * osr[i]) / ONE;
     }
@@ -156,7 +155,8 @@ contract RewarderCycle is BaseRewarder {
     for (uint i = ucid; i < cid; i++) {
       delete us_[i];
     }
-    uccid[usr] = cycleId;
+    us_[cid] = staker.balanceOf(usr);
+    uccid[usr] = cid;
   }
 
   function _claim(address usr) internal override returns (uint) {

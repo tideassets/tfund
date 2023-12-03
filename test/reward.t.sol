@@ -13,14 +13,6 @@ contract MStaker is ERC20 {
   address rtoken;
   address rewarder;
 
-  // function mint(address usr, uint amt) external {
-  //   _mint(usr, amt);
-  // }
-
-  // function burn(address usr, uint amt) external {
-  //   _burn(usr, amt);
-  // }
-
   function stake(address usr, uint amt) external {
     RewarderLike(rewarder).stake(usr, amt);
     _mint(usr, amt);
@@ -44,15 +36,6 @@ contract MEsToken is ERC20 {
     _mint(usr, amt);
   }
 }
-
-// contract MRewardValut is Auth, ERC20 {
-//   constructor() ERC20("RewardValut", "RV") {}
-
-//   function getReward(address rtoken, uint amt) external auth returns (uint) {
-//     IERC20(rtoken).transfer(msg.sender, amt);
-//     return amt;
-//   }
-// }
 
 contract MRewardVault is Auth {
   function doApprove(address token, address usr, uint amt) external auth {
@@ -100,10 +83,10 @@ contract RewarderPerSecondTest is Test {
     assertEq(staker.balanceOf(address(this)), 1 ether);
     vm.warp(block.timestamp + 1 seconds);
     assertEq(R.claimable(address(this)), 1e9, "1 second should be same");
-    // vm.warp(block.timestamp + 100 seconds);
-    // assertEq(R.claimable(address(this)), 101 * 1e9, "100 second should be same");
-    // vm.warp(block.timestamp + 100 seconds);
-    // assertEq(R.claimable(address(this)), 201 * 1e9, "200 second should be same");
+    vm.warp(block.timestamp + 100 seconds);
+    assertEq(R.claimable(address(this)), 101 * 1e9, "100 second should be same");
+    vm.warp(block.timestamp + 100 seconds);
+    assertEq(R.claimable(address(this)), 201 * 1e9, "200 second should be same");
   }
 
   function testClaim() public {
@@ -157,30 +140,47 @@ contract RewarderCycleTest is Test {
     staker.addRtoken(address(reward), address(R));
   }
 
-  function testStake() public {
+  function _testStake() public {
     staker.stake(address(this), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
-    vm.warp(1 seconds);
     assertEq(R.claimable(address(this)), 0, "before new cycle, should be zero");
+    R.newCycle(1e9);
+    assertEq(R.claimable(address(this)), 0, "before new cycle, should be zero");
+    R.newCycle(1e9);
+    assertEq(R.claimable(address(this)), 1e9, "after new cycle, should NOT be zero");
+  }
+
+  function testStake() public {
+    _testStake();
+
+    assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
+    R.claim(address(this), address(this));
+    assertEq(reward.balanceOf(address(this)), 1e9, "balance should be same 1 secon");
+
+    R.newCycle(1e9);
+    assertEq(R.claimable(address(this)), 1e9, "should be 1e9");
   }
 
   function testClaim() public {
     staker.stake(address(this), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
 
-    vm.warp(1 seconds);
-    assertEq(R.claimable(address(this)), 1e9, "1 second should be same");
-    assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
+    R.newCycle(1e9);
+    R.newCycle(1e9);
+    R.newCycle(1e9);
+    R.newCycle(1e9);
+    R.newCycle(1e9);
+    R.newCycle(1e9);
+    assertEq(R.claimable(address(this)), 5e9, "should be 5e9");
     R.claim(address(this), address(this));
-    assertEq(reward.balanceOf(address(this)), 1e9, "balance should be same 1 secon");
+    assertEq(reward.balanceOf(address(this)), 5e9, "balance should be same 5e9");
+  }
 
-    vm.warp(block.timestamp + 100 seconds);
-    assertEq(R.claimable(address(this)), 100 * 1e9, "100 second should be same");
-    R.claim(address(this), address(this));
-    assertEq(reward.balanceOf(address(this)), 101e9, "101 second should be same");
-    vm.warp(block.timestamp + 100 seconds);
-    assertEq(R.claimable(address(this)), 100 * 1e9, "100 second should be same");
-    R.claim(address(this), address(this));
-    assertEq(reward.balanceOf(address(this)), 201e9, "201 second should be same");
+  function testUnstake() external {
+    testClaim();
+    staker.unstake(address(this), 1 ether);
+    R.newCycle(1e9);
+    assertEq(R.claimable(address(this)), 0, "claimable should be zero");
+    _testStake();
   }
 }

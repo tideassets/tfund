@@ -171,8 +171,11 @@ contract Vault is ReentrancyGuard, Auth {
     (, int lastAnswer,,,) = o.latestRoundData();
     int dval = (lastAnswer * amt) / int(ONE);
     total += dval;
+    require(total > 0, "Val/ass amount error");
     assVal += dval;
-    require(assVal > 0, "Val/asset is 0");
+    if (assVal < 0) {
+      assVal = 0;
+    }
     return (PENSENT_DIVISOR * uint(assVal)) / uint(total);
   }
 

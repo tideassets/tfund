@@ -211,7 +211,9 @@ contract VaultTest is Test {
     testInitAssets();
     uint p = val.assetPersent(address(T1));
     console2.log("persent", p);
-    uint fee = val.sellFee(address(T1), 1000 ether);
+    p = val.assetPersent(address(T1));
+    console2.log("persent2", p);
+    uint fee = val.sellFee(address(T1), 900 ether);
     console2.log("fee", fee);
     assertTrue(fee > 0, "fee should be greater than zero");
   }
