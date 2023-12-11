@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2023
-// tvt.sol: tide vetoken contract
+// roles.sol: roles and permissions
 //
 pragma solidity ^0.8.20;
 
 import {DSAuth, DSAuthority} from "ds-auth/auth.sol";
 
+// set roles and permissions
+// roles are bytes32, use keccak256('Role1'). permissions are bytes4, use bytes4(keccak256('functionName(arg1Type,arg2Type)'))
+// permissions are set by roles, roles are set by admins or other roles
 contract Roles is DSAuth, DSAuthority {
   struct Data {
     mapping(bytes32 => uint) indexs;

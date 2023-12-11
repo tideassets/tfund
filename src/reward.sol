@@ -35,7 +35,6 @@ abstract contract RewarderBase is Auth {
     _;
   }
 
-  event SendReward(uint amount);
   event Claim(address indexed usr, address recv, uint amount);
 
   function stake(address usr, uint amt) external onlyStaker whenNotPaused {
@@ -180,7 +179,7 @@ contract RewarderAccum is RewarderBase {
 
   constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
-  function setRewardPerSecond(uint amount) external auth {
+  function setRPS(uint amount) external auth {
     rewardPerSecond = amount;
   }
 

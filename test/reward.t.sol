@@ -67,7 +67,7 @@ contract RewarderPerSecondTest is Test {
 
     staker = new Stakex("Staker", "STK", address(asset));
     R = new RewarderAccum(address(reward), address(staker), address(rewardValut));
-    R.setRewardPerSecond(1e9);
+    R.setRPS(1e9);
 
     reward.mint(address(rewardValut), 1e9 ether);
     asset.mint(address(this), 1e9 ether);

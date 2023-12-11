@@ -8,6 +8,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth.sol";
 
+interface LokerLike {
+  function unlock(uint) external;
+}
+
 contract Dao is Auth {
   using SafeERC20 for IERC20;
 

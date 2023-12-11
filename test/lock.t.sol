@@ -71,7 +71,6 @@ contract LockerTest is Test {
     locker =
       new Locker(address(token), address(dao), address(tsaDao), address(team), address(lpFund));
     token.rely(address(locker));
-    locker.init();
   }
 
   function testUnlock() public {

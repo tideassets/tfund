@@ -46,9 +46,11 @@ contract Locker is Auth {
     cycle["tsaDao"] = 30 days;
     cycle["team"] = 30 days;
     cycle["lpFund"] = 7 days;
+
+    _init();
   }
 
-  function init() external auth {
+  function _init() internal {
     token.mint(address(this), 1e8 * ONE);
     token.safeTransfer(addrs["dao"], 2e6 * ONE);
 
@@ -64,19 +66,19 @@ contract Locker is Auth {
     lpNext = remains["lpFund"] / 52 / 5;
   }
 
-  function changeDao(address dao) external auth {
+  function setDao(address dao) external auth {
     addrs["dao"] = dao;
   }
 
-  function changeTsaDao(address tsaDao) external auth {
+  function setTsaDao(address tsaDao) external auth {
     addrs["tsaDao"] = tsaDao;
   }
 
-  function changeTeam(address team) external auth {
+  function setTeam(address team) external auth {
     addrs["team"] = team;
   }
 
-  function changeLpFund(address lpFund) external auth {
+  function setLpFund(address lpFund) external auth {
     addrs["lpFund"] = lpFund;
   }
 
