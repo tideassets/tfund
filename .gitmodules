@@ -7,3 +7,6 @@
 [submodule "lib/solidity-examples"]
 	path = lib/solidity-examples
 	url = https://github.com/LayerZero-Labs/solidity-examples
+[submodule "lib/ds-libs"]
+	path = lib/ds-libs
+	url = https://github.com/tideassets/ds-libs
