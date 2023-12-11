@@ -14,7 +14,7 @@ interface EsTokenLike {
 
 interface Staker is IERC20 {}
 
-abstract contract BaseRewarder is Auth {
+abstract contract RewarderBase is Auth {
   using SafeERC20 for IERC20;
 
   IERC20 public rewardToken;
@@ -38,11 +38,11 @@ abstract contract BaseRewarder is Auth {
   event SendReward(uint amount);
   event Claim(address indexed usr, address recv, uint amount);
 
-  function stake(address usr, uint amt) external onlyStaker {
+  function stake(address usr, uint amt) external onlyStaker whenNotPaused {
     _stake(usr, amt);
   }
 
-  function unstake(address usr, uint amt) external onlyStaker {
+  function unstake(address usr, uint amt) external onlyStaker whenNotPaused {
     _unstake(usr, amt);
   }
 
@@ -54,7 +54,11 @@ abstract contract BaseRewarder is Auth {
 
   function _unstake(address usr, uint amt) internal virtual;
 
-  function claim(address usr, address recv) external {
+  function claim(address usr, address recv) external whenNotPaused {
+    require(
+      msg.sender == address(usr) || msg.sender == address(staker),
+      "Rewarder/not usr owner or staker"
+    );
     uint amount = _claim(usr);
     if (address(esToken) != address(0)) {
       IERC20(rewardToken).approve(address(esToken), amount);
@@ -70,7 +74,7 @@ abstract contract BaseRewarder is Auth {
   function claimable(address usr) public view virtual returns (uint);
 }
 
-contract RewarderCycle is BaseRewarder {
+contract RewarderCycle is RewarderBase {
   using SafeERC20 for IERC20;
 
   uint public CYCLE = 7 days;
@@ -86,7 +90,7 @@ contract RewarderCycle is BaseRewarder {
 
   uint public constant MIN = 1;
 
-  constructor(address rt, address stk, address rv) BaseRewarder(rt, stk, rv) {}
+  constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
   function _newCycle(uint rps) internal {
     // uint ramt = rewardValut.getReward(address(rewardToken), cycleId);
@@ -166,7 +170,7 @@ contract RewarderCycle is BaseRewarder {
   }
 }
 
-contract RewarderPerSecond is BaseRewarder {
+contract RewarderAccum is RewarderBase {
   using SafeERC20 for IERC20;
 
   uint public rewardPerSecond;
@@ -174,7 +178,7 @@ contract RewarderPerSecond is BaseRewarder {
   mapping(address => uint) public usrUpdateTime;
   mapping(address => uint) public usrAccumulatedReward;
 
-  constructor(address rt, address stk, address rv) BaseRewarder(rt, stk, rv) {}
+  constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
   function setRewardPerSecond(uint amount) external auth {
     rewardPerSecond = amount;

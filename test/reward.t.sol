@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {RewarderCycle, RewarderPerSecond} from "../src/reward.sol";
+import {RewarderCycle, RewarderAccum} from "../src/reward.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Auth} from "../src/auth.sol";
 import {RewarderLike, Stakex} from "../src/stake.sol";
@@ -52,7 +52,7 @@ contract MToken is ERC20, Auth {
 }
 
 contract RewarderPerSecondTest is Test {
-  RewarderPerSecond public R;
+  RewarderAccum public R;
   Stakex public staker;
   MEsToken public esToken;
   MRewardVault public rewardValut;
@@ -66,7 +66,7 @@ contract RewarderPerSecondTest is Test {
     asset = new MToken();
 
     staker = new Stakex("Staker", "STK", address(asset));
-    R = new RewarderPerSecond(address(reward), address(staker), address(rewardValut));
+    R = new RewarderAccum(address(reward), address(staker), address(rewardValut));
     R.setRewardPerSecond(1e9);
 
     reward.mint(address(rewardValut), 1e9 ether);

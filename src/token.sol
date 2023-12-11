@@ -208,14 +208,17 @@ contract TToken is OFTWithFee, Auth {
 
   // --- Alias --- for Dai
   function push(address usr, uint wad) external {
-    transferFrom(msg.sender, usr, wad);
+    bool ok = transfer(usr, wad);
+    require(ok, "TToken/push-failed");
   }
 
   function pull(address usr, uint wad) external {
-    transferFrom(usr, msg.sender, wad);
+    bool ok = transferFrom(usr, msg.sender, wad);
+    require(ok, "TToken/pull-failed");
   }
 
   function move(address src, address dst, uint wad) external {
-    transferFrom(src, dst, wad);
+    bool ok = transferFrom(src, dst, wad);
+    require(ok, "TToken/move-failed");
   }
 }

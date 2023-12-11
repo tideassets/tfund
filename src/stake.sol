@@ -78,7 +78,7 @@ contract Stakex is ERC20, Auth {
     delete rewarders[rtoken];
   }
 
-  function stake(address to, uint amt) external {
+  function stake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
     sktToken.safeTransferFrom(msg.sender, address(this), amt);
@@ -95,7 +95,7 @@ contract Stakex is ERC20, Auth {
     }
   }
 
-  function unstake(address to, uint amt) external {
+  function unstake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
     _unstake(to, amt);

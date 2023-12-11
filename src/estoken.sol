@@ -46,6 +46,25 @@ contract EsToken is ERC20, Auth {
     return vestingId;
   }
 
+  function vestings(address usr) external view returns (uint[] memory) {
+    return vestingIds[usr];
+  }
+
+  function vestingInfo(uint vestingId_) external view returns (uint, uint, uint) {
+    Vest memory vest = vests[vestingId_];
+    return (vest.amt, vest.claimed, vest.start);
+  }
+
+  function claimable() external view returns (uint) {
+    uint[] memory ids = vestingIds[msg.sender];
+    uint amount = 0;
+    for (uint i = 0; i < ids.length; i++) {
+      (uint amt,) = _claimable(ids[i]);
+      amount += amt;
+    }
+    return amount;
+  }
+
   function claimable(uint vestingId_) public view returns (uint) {
     (uint amt,) = _claimable(vestingId_);
     return amt;
