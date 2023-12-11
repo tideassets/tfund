@@ -60,7 +60,7 @@ contract VeToken is Auth, ERC721 {
     core = IERC20(core_);
   }
 
-  function power(uint tokenId_) public view returns (uint) {
+  function powerOf(uint tokenId_) public view returns (uint) {
     Long l = pows[tokenId_].long;
     uint amt = pows[tokenId_].amt;
     uint mult = mults[l];
@@ -68,7 +68,7 @@ contract VeToken is Auth, ERC721 {
   }
 
   // user power
-  function power(address user) public view returns (uint) {
+  function powerOf(address user) public view returns (uint) {
     uint[] memory ids_ = ids[user];
     uint p = 0;
     for (uint i = 0; i < ids_.length; i++) {
@@ -76,7 +76,7 @@ contract VeToken is Auth, ERC721 {
       if (ownerOf(id) != user) {
         continue;
       }
-      p += power(id);
+      p += powerOf(id);
     }
     return p;
   }
@@ -106,7 +106,7 @@ contract VeToken is Auth, ERC721 {
     require(block.timestamp >= start + longs[long], "VeToken/time is't up");
 
     uint amt = pows[tokenId_].amt;
-    uint pow = power(tokenId_);
+    uint pow = powerOf(tokenId_);
     totalPower -= pow;
 
     core.safeTransfer(msg.sender, amt);
@@ -121,7 +121,7 @@ contract VeToken is Auth, ERC721 {
     emit Withdraw(msg.sender, amt, start, long);
   }
 
-  function transferFrom(address, address, uint) public pure override {
-    require(false, "VeToken/not allowed");
-  }
+  // function transferFrom(address, address, uint) public override auth {
+  //   super.transferFrom(address, address, uint);
+  // }
 }

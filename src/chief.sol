@@ -9,20 +9,32 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IOUToken} from "./IOU.sol";
 
-interface IToken {
+interface IOULike {
   function mint(address, uint) external;
   function burn(address, uint) external;
+}
+
+interface TokenLike {
   function transfer(address, uint) external returns (bool);
   function transferFrom(address, address, uint) external returns (bool);
 }
 
+interface NFTLike {
+  function core() external view returns (address);
+  function ownerOf(uint) external view returns (address);
+  function powerOf(uint) external view returns (uint);
+  function transferFrom(address, address, uint) external;
+}
+
+// you can vote use ERC20 token and veToken
 contract TApprovals {
   mapping(bytes32 => address[]) public slates;
   mapping(address => bytes32) public votes;
   mapping(address => uint) public approvals;
   mapping(address => uint) public deposits;
-  IToken public GOV; // voting token that gets locked up
-  IToken public IOU; // non-voting representation of a token, for e.g. secondary voting mechanisms
+  mapping(uint => address) public nfts;
+  TokenLike public GOV; // voting token that gets locked up
+  IOULike public IOU; // non-voting representation of a token, for e.g. secondary voting mechanisms
   address public hat; // the chieftain's hat
 
   uint public MAX_YAYS;
@@ -32,8 +44,8 @@ contract TApprovals {
   // IOU constructed outside this contract reduces deployment costs significantly
   // lock/free/vote are quite sensitive to token invariants. Caution is advised.
   constructor(address GOV_, address IOU_, uint MAX_YAYS_) {
-    GOV = IToken(GOV_);
-    IOU = IToken(IOU_);
+    GOV = TokenLike(GOV_);
+    IOU = IOULike(IOU_);
     MAX_YAYS = MAX_YAYS_;
   }
 
@@ -48,9 +60,31 @@ contract TApprovals {
   function free(uint wad) public {
     deposits[msg.sender] = deposits[msg.sender] - wad;
     subWeight(wad, votes[msg.sender]);
-    GOV.burn(msg.sender, wad);
-    bool ok = IOU.transfer(msg.sender, wad);
+    IOU.burn(msg.sender, wad);
+    bool ok = GOV.transfer(msg.sender, wad);
     require(ok, "Approvals/failed-transfer");
+  }
+
+  function lockNFT(address nft, uint id) public {
+    require(NFTLike(nft).core() == address(GOV), "Approveals/Not GOV token NFT");
+    require(NFTLike(nft).ownerOf(id) == msg.sender, "Approvals/Not ownerOf id");
+    uint wad = NFTLike(nft).powerOf(id);
+    NFTLike(nft).transferFrom(msg.sender, address(this), id);
+    IOU.mint(msg.sender, wad);
+    deposits[msg.sender] = deposits[msg.sender] + wad;
+    nfts[id] = msg.sender;
+    addWeight(wad, votes[msg.sender]);
+  }
+
+  function freeNFT(address nft, uint id) public {
+    require(NFTLike(nft).core() == address(GOV), "Approveals/Not GOV token NFT");
+    require(nfts[id] == msg.sender, "Approvals/Not ownerOf id");
+    uint wad = NFTLike(nft).powerOf(id);
+    deposits[msg.sender] = deposits[msg.sender] - wad;
+    subWeight(wad, votes[msg.sender]);
+    IOU.burn(msg.sender, wad);
+    delete nfts[id];
+    NFTLike(nft).transferFrom(address(this), msg.sender, id);
   }
 
   function etch(address[] memory yays) public returns (bytes32 slate) {

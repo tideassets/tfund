@@ -245,7 +245,7 @@ contract Vault is Auth {
     returns (uint)
   {
     uint max = _buy(ass, to, amt, true);
-    require(max >= minOut, "Nat/amount out is too large");
+    require(max >= minOut, "Vat/amount out is too large");
     return max;
   }
 

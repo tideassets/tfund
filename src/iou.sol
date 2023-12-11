@@ -17,4 +17,19 @@ contract IOUToken is ERC20, Ownable {
   function burn(address usr, uint wad) external onlyOwner {
     _burn(usr, wad);
   }
+
+  // override ERC20.transferFrom to add owner check
+  function transferFrom(address from, address to, uint value)
+    public
+    override
+    onlyOwner
+    returns (bool)
+  {
+    return super.transferFrom(from, to, value);
+  }
+
+  // override ERC20.transfer to add owner check
+  function transfer(address to, uint value) public override onlyOwner returns (bool) {
+    return super.transfer(to, value);
+  }
 }
