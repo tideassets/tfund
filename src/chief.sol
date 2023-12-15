@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (C) 2023
-// tvt.sol: tide vetoken contract
+// chief.sol: vote a chief from a set of candidates
 //
 pragma solidity ^0.8.20;
 
@@ -32,7 +32,6 @@ contract TApprovals {
   mapping(address => bytes32) public votes;
   mapping(address => uint) public approvals;
   mapping(address => uint) public deposits;
-  mapping(uint => address) public nfts;
   TokenLike public GOV; // voting token that gets locked up
   IOULike public IOU; // non-voting representation of a token, for e.g. secondary voting mechanisms
   address public hat; // the chieftain's hat
@@ -72,18 +71,16 @@ contract TApprovals {
     NFTLike(nft).transferFrom(msg.sender, address(this), id);
     IOU.mint(msg.sender, wad);
     deposits[msg.sender] = deposits[msg.sender] + wad;
-    nfts[id] = msg.sender;
     addWeight(wad, votes[msg.sender]);
   }
 
   function freeNFT(address nft, uint id) public {
     require(NFTLike(nft).core() == address(GOV), "Approveals/Not GOV token NFT");
-    require(nfts[id] == msg.sender, "Approvals/Not ownerOf id");
+    require(NFTLike(nft).ownerOf(id) == msg.sender, "Approvals/Not ownerOf id");
     uint wad = NFTLike(nft).powerOf(id);
     deposits[msg.sender] = deposits[msg.sender] - wad;
     subWeight(wad, votes[msg.sender]);
     IOU.burn(msg.sender, wad);
-    delete nfts[id];
     NFTLike(nft).transferFrom(address(this), msg.sender, id);
   }
 
@@ -176,7 +173,7 @@ contract TChief is DSRoles, TApprovals {
 
 contract TChiefFab {
   function newChief(address gov, uint MAX_YAYS) public returns (TChief chief) {
-    IOUToken iou = new IOUToken('IOU', "iou token");
+    IOUToken iou = new IOUToken('IOU token', "IOU");
     chief = new TChief(gov, address(iou), MAX_YAYS);
     iou.transferOwnership(address(chief));
   }
