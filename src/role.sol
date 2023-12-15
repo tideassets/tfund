@@ -4,82 +4,11 @@
 //
 pragma solidity ^0.8.20;
 
-import {DSAuth, DSAuthority} from "ds-auth/auth.sol";
 import {DSRoles} from "ds-roles/roles.sol";
 
-// set roles and permissions
-// roles are bytes32, use keccak256('Role1'). permissions are bytes4, use bytes4(keccak256('functionName(arg1Type,arg2Type)'))
-// permissions are set by roles, roles are set by admins or other roles
-contract Roles is DSAuth, DSAuthority {
-  mapping(address => bool) public admins;
-  mapping(address => bytes32[]) users;
-  mapping(bytes32 => mapping(address => uint)) roles;
-  mapping(bytes32 => mapping(address => mapping(bytes4 => bool))) permissions;
-
-  event SetUserRole(address indexed usr, bytes32 indexed role, bool allow);
-  event SetPermission(bytes32 indexed role, address indexed code, bytes4 indexed sig, bool allow);
-  event SetAdmin(address indexed usr, bool isAuth);
-
-  constructor() {
-    admins[msg.sender] = true;
-  }
-
-  function setAdmin(address usr, bool isAuth) external auth {
-    admins[usr] = isAuth;
-    emit SetAdmin(usr, isAuth);
-  }
-
-  function setPermission(bytes32 role, address code, bytes4 sig, bool allow) external auth {
-    require(role != bytes32(0), "Role/invalid-role");
-    permissions[role][code][sig] = allow;
-    emit SetPermission(role, code, sig, allow);
-  }
-
-  function setUserRole(address usr, bytes32 role, bool allow) external auth {
-    uint index = roles[role][usr];
-    bytes32[] storage urs = users[usr];
-    if (allow) {
-      if (urs.length == 0) {
-        urs.push(0x0); // index must > 0
-      }
-      if (index == 0) {
-        roles[role][usr] = urs.length;
-        urs.push(role);
-      }
-    } else {
-      if (index > 0) {
-        bytes32 last = urs[urs.length - 1];
-        urs[index] = last;
-        urs.pop();
-        delete roles[role][usr];
-      }
-    }
-    emit SetUserRole(usr, role, allow);
-  }
-
-  function hasRole(address usr, bytes32 role) external view returns (bool) {
-    return roles[role][usr] > 0;
-  }
-
-  function isAdministrator(address usr) external view returns (bool) {
-    return admins[usr];
-  }
-
-  function canCall(address usr, address code, bytes4 sig) external view returns (bool) {
-    if (admins[usr]) {
-      return true;
-    }
-    bytes32[] memory urs = users[usr];
-    for (uint i = 1; i < urs.length; i++) {
-      // skip 0
-      if (permissions[urs[i]][code][sig]) {
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
+// A single user can be assigned multiple roles, and a single role can include multiple users.
+// Supports a maximum of 256 role types. New types can be added using the addType function.
+// For example, addType("ROOT").
 contract TRoles is DSRoles {
   mapping(bytes32 => uint8) types;
   mapping(uint8 => bytes32) names;
