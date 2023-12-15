@@ -4,12 +4,13 @@
 //
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./auth.sol";
+import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Auth} from "./auth.sol";
 
 contract EsToken is ERC20, Auth {
+  using SafeERC20 for IERC20;
+
   struct Vest {
     uint amt;
     uint claimed;
@@ -101,14 +102,14 @@ contract EsToken is ERC20, Auth {
     if (amount == 0) {
       return 0;
     }
-    token.transfer(msg.sender, amount);
+    token.safeTransfer(msg.sender, amount);
     emit Claim(msg.sender, amount);
     return amount;
   }
 
   function deposit(address usr, uint amt) external whenNotPaused {
     require(amt > 0, "TsToken/zero-amount");
-    token.transferFrom(msg.sender, address(this), amt);
+    token.safeTransferFrom(msg.sender, address(this), amt);
     _mint(usr, amt);
     emit Deposit(usr, amt);
   }

@@ -51,8 +51,8 @@ contract Roles is DSAuth, DSAuthority {
         if (!allow) {
           return;
         }
-        d.roles.push(role);
         d.indexs[role] = d.roles.length;
+        d.roles.push(role);
       } else {
         if (allow) {
           return;
@@ -83,8 +83,8 @@ contract Roles is DSAuth, DSAuthority {
         if (!allow) {
           return;
         }
-        d.roles.push(role);
         d.indexs[role] = d.roles.length;
+        d.roles.push(role);
       } else {
         if (allow) {
           return;

@@ -12,6 +12,10 @@ contract RTokens is Auth {
   address[] public rtokens;
   mapping(address => uint) public rtokenIndex;
 
+  constructor() {
+    rtokens.push(address(0));
+  }
+
   function count() public view returns (uint) {
     return rtokens.length;
   }
@@ -50,7 +54,6 @@ contract RTokens is Auth {
 
 interface RewarderLike {
   function stake(address, uint) external;
-
   function unstake(address, uint) external;
 }
 
@@ -89,7 +92,8 @@ contract Stakex is ERC20, Auth {
   function _stake(address to, uint amt) internal {
     uint rtlen = rtokens.count();
     mapping(address => RewarderLike) storage rewarders_ = rewarders;
-    for (uint i = 0; i < rtlen; i++) {
+    for (uint i = 1; i < rtlen; i++) {
+      // should skip 0
       address rt = rtokens.rtokens(i);
       rewarders_[rt].stake(to, amt);
     }
@@ -106,7 +110,8 @@ contract Stakex is ERC20, Auth {
   function _unstake(address to, uint amt) internal {
     uint rtlen = rtokens.count();
     mapping(address => RewarderLike) storage rewarders_ = rewarders;
-    for (uint i = 0; i < rtlen; i++) {
+    for (uint i = 1; i < rtlen; i++) {
+      // should skip 0
       address rt = rtokens.rtokens(i);
       rewarders_[rt].unstake(to, amt);
     }

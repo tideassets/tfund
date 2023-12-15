@@ -46,11 +46,11 @@ contract Locker is Auth {
     cycle["tsaDao"] = 30 days;
     cycle["team"] = 30 days;
     cycle["lpFund"] = 7 days;
-
-    _init();
   }
 
-  function _init() internal {
+  // should be called by governance and only once
+  // use external because mint should be called by auth this contract
+  function init() external auth {
     token.mint(address(this), 1e8 * ONE);
     token.safeTransfer(addrs["dao"], 2e6 * ONE);
 

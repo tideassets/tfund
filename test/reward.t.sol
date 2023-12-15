@@ -51,7 +51,7 @@ contract MToken is ERC20, Auth {
   }
 }
 
-contract RewarderPerSecondTest is Test {
+contract RewarderAccumTest is Test {
   RewarderAccum public R;
   Stakex public staker;
   MEsToken public esToken;

@@ -10,7 +10,7 @@ abstract contract Auth is Pausable {
   mapping(address => uint) internal wards;
 
   modifier auth() {
-    require(wards[msg.sender] == 1, "Val/not-authorized");
+    require(wards[msg.sender] == 1, "Auth/not-authorized");
     _;
   }
 
