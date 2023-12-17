@@ -12,22 +12,31 @@ interface EsTokenLike {
   function deposit(address, uint) external;
 }
 
-interface Staker is IERC20 {}
+interface StakerLike {
+  function totalSupply() external view returns (uint);
+  function balanceOf(address) external view returns (uint);
+  function stkToken() external view returns (IERC20);
+}
 
 abstract contract RewarderBase is Auth {
   using SafeERC20 for IERC20;
 
   IERC20 public rewardToken;
-  Staker public staker;
+  StakerLike public staker;
   address public rewardValut;
   EsTokenLike public esToken;
+  // bool public compound;
 
   uint public constant ONE = 10 ** 18; // one coin
 
   constructor(address rt, address staker_, address rv) {
     rewardToken = IERC20(rt);
-    staker = Staker(staker_);
+    staker = StakerLike(staker_);
     rewardValut = rv;
+    // if (compound) {
+    //   require(address(staker.stkToken()) == rt, "Rewarder/compound: reward token not stake token");
+    // }
+    // compound = compound_;
   }
 
   modifier onlyStaker() {
@@ -60,7 +69,8 @@ abstract contract RewarderBase is Auth {
     );
     uint amount = _claim(usr);
     if (address(esToken) != address(0)) {
-      IERC20(rewardToken).approve(address(esToken), amount);
+      IERC20(rewardToken).safeTransferFrom(rewardValut, address(this), amount);
+      IERC20(rewardToken).forceApprove(address(esToken), amount);
       esToken.deposit(recv, amount);
     } else {
       IERC20(rewardToken).safeTransferFrom(rewardValut, recv, amount);
@@ -73,11 +83,16 @@ abstract contract RewarderBase is Auth {
   function claimable(address usr) public view virtual returns (uint);
 }
 
+// Periodic rewards
+// When increasing the stake, you can only increase the stake for the next cycle
+// When reducing the stake, you can only reduce the stake for the current cycle
+// At the start of a new cycle, set the reward per stake (reward per stake ONE -> osr) for this cycle
+// Because the osr for each cycle is different, when the user claims,
+// the rewards for each cycle need to be calculated separately
 contract RewarderCycle is RewarderBase {
   using SafeERC20 for IERC20;
 
-  uint public CYCLE = 7 days;
-  uint cycleId;
+  uint public cycleId;
   uint public totalStakes;
 
   // key is cycle id, value is reward per stake one
@@ -85,14 +100,13 @@ contract RewarderCycle is RewarderBase {
   // key1 is user, key2 is cycle id,  value is  stake
   mapping(address => mapping(uint => uint)) public us;
   // key is user, value is claimeded cycle id
-  mapping(address => uint) public uccid;
+  mapping(address => uint) public ucid;
 
   uint public constant MIN = 1;
 
   constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
   function _newCycle(uint rps) internal {
-    // uint ramt = rewardValut.getReward(address(rewardToken), cycleId);
     cycleId++;
     osr[cycleId] = rps; //(ramt * ONE) / totalStakes;
     totalStakes = staker.totalSupply();
@@ -104,47 +118,38 @@ contract RewarderCycle is RewarderBase {
 
   // _stake add stake amount to next cycle
   function _stake(address usr, uint amt) internal override {
-    us[usr][cycleId + 1] = amt;
-    uccid[usr] = cycleId;
+    uint cid = cycleId;
+    uint balance = staker.balanceOf(usr);
+    mapping(uint => uint) storage us_ = us[usr];
+    us_[cid + 1] = balance + amt;
   }
 
   // _unstake reduce stake amount from current cycle
   function _unstake(address usr, uint amt) internal override {
     totalStakes -= amt;
-    uint s = us[usr][cycleId];
-    if (s == 0) {
-      s = staker.balanceOf(usr);
-      us[usr][cycleId] = s;
-    }
-    if (s == 0) {
-      return;
-    }
-    s -= amt;
-    if (s == 0) {
-      s = MIN;
-    }
-    us[usr][cycleId] = s;
+
+    uint cid = cycleId;
+    uint balance = staker.balanceOf(usr);
+    mapping(uint => uint) storage us_ = us[usr];
+    uint n = balance - amt;
+    us_[cid] = n > 0 ? n : MIN;
   }
 
   function claimable(address usr) public view override returns (uint) {
-    uint ucid = uccid[usr];
     uint cid = cycleId;
+    uint uid = ucid[usr] > 0 ? ucid[usr] : 1;
     uint amount = 0;
-    uint last = 0;
+    uint last = 0; // last stake amount not zero
     mapping(uint => uint) storage us_ = us[usr];
-    for (uint i = ucid; i < cid; i++) {
+    for (uint i = uid; i < cid; i++) {
       uint s = us_[i];
-      if (s == 0) {
-        s = us_[i - 1];
-      }
-      if (s == 0) {
-        s = last;
-      }
-      if (s == MIN) {
-        s = 0;
-      }
       if (s > 0) {
         last = s;
+      } else {
+        s = last;
+      }
+      if (s == MIN || s == 0) {
+        continue;
       }
       amount += (s * osr[i]) / ONE;
     }
@@ -152,14 +157,14 @@ contract RewarderCycle is RewarderBase {
   }
 
   function _clear(address usr) internal {
-    uint ucid = uccid[usr];
+    uint uid = ucid[usr];
     uint cid = cycleId;
     mapping(uint => uint) storage us_ = us[usr];
-    for (uint i = ucid; i < cid; i++) {
+    for (uint i = uid; i < cid; i++) {
       delete us_[i];
     }
+    ucid[usr] = cid;
     us_[cid] = staker.balanceOf(usr);
-    uccid[usr] = cid;
   }
 
   function _claim(address usr) internal override returns (uint) {

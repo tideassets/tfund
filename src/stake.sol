@@ -29,24 +29,19 @@ contract RTokens is Auth {
   }
 
   function _addRtoken(address rtoken) internal virtual {
-    if (rtokenIndex[rtoken] == 0) {
-      rtokens.push(rtoken);
-      rtokenIndex[rtoken] = rtokens.length;
-    }
+    require(rtokenIndex[rtoken] == 0, "already added");
+    rtokenIndex[rtoken] = rtokens.length;
+    rtokens.push(rtoken);
   }
 
   function _delRtoken(address rtoken) internal virtual {
-    if (rtokenIndex[rtoken] == 0) {
-      return;
+    require(rtokenIndex[rtoken] > 0, "not added");
+    if (rtokens.length > 1) {
+      uint index = rtokenIndex[rtoken];
+      address last = rtokens[rtokens.length - 1];
+      rtokens[index] = last;
+      rtokenIndex[last] = index;
     }
-    if (rtokens.length == 1) {
-      delete rtokenIndex[rtoken];
-      rtokens.pop();
-      return;
-    }
-    uint index = rtokenIndex[rtoken] - 1;
-    rtokens[index] = rtokens[rtokens.length - 1];
-    rtokenIndex[rtokens[index]] = index + 1;
     rtokens.pop();
     delete rtokenIndex[rtoken];
   }
@@ -60,13 +55,13 @@ interface RewarderLike {
 contract Stakex is ERC20, Auth {
   using SafeERC20 for IERC20;
 
-  IERC20 public sktToken;
+  IERC20 public stkToken;
 
   RTokens public rtokens;
   mapping(address => RewarderLike) public rewarders; // key is rtoken
 
   constructor(string memory name_, string memory symbol_, address stkToken_) ERC20(name_, symbol_) {
-    sktToken = IERC20(stkToken_);
+    stkToken = IERC20(stkToken_);
     rtokens = new RTokens();
   }
 
@@ -84,8 +79,9 @@ contract Stakex is ERC20, Auth {
   function stake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
-    sktToken.safeTransferFrom(msg.sender, address(this), amt);
     _stake(to, amt);
+
+    stkToken.safeTransferFrom(msg.sender, address(this), amt);
     _mint(to, amt);
   }
 
@@ -104,7 +100,7 @@ contract Stakex is ERC20, Auth {
 
     _unstake(to, amt);
     _burn(msg.sender, amt);
-    sktToken.safeTransfer(to, amt);
+    stkToken.safeTransfer(to, amt);
   }
 
   function _unstake(address to, uint amt) internal {

@@ -155,9 +155,14 @@ contract RewarderCycleTest is Test {
 
     assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
     R.claim(address(this), address(this));
+    assertEq(R.cycleId(), 3, "cycle id should be 3");
+    assertEq(R.ucid(address(this)), 3, "cycle id should be 3");
+    assertEq(staker.balanceOf(address(this)), 1 ether);
+    assertEq(R.us(address(this), 3), 1 ether, "us should be 1 ether");
     assertEq(reward.balanceOf(address(this)), 1e9, "balance should be same 1 secon");
 
     R.newCycle(1e9);
+    assertEq(R.cycleId(), 4, "cycle id should be 4");
     assertEq(R.claimable(address(this)), 1e9, "should be 1e9");
   }
 
@@ -169,18 +174,20 @@ contract RewarderCycleTest is Test {
     R.newCycle(1e9);
     R.newCycle(1e9);
     R.newCycle(1e9);
+    staker.stake(address(this), 1 ether);
     R.newCycle(1e9);
     R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 5e9, "should be 5e9");
+    assertEq(R.claimable(address(this)), 6e9, "should be 6e9");
+    uint balance = reward.balanceOf(address(this));
     R.claim(address(this), address(this));
-    assertEq(reward.balanceOf(address(this)), 5e9, "balance should be same 5e9");
+    assertEq(reward.balanceOf(address(this)), balance + 6e9, "balance should be same");
   }
 
   function testUnstake() external {
     testClaim();
-    staker.unstake(address(this), 1 ether);
+    staker.unstake(address(this), 2 ether);
     R.newCycle(1e9);
     assertEq(R.claimable(address(this)), 0, "claimable should be zero");
-    _testStake();
+    testClaim();
   }
 }

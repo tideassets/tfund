@@ -20,7 +20,7 @@ contract Dao is Auth {
   }
 
   function approve(address token, address to, uint amt) external auth whenNotPaused {
-    IERC20(token).approve(to, amt);
+    IERC20(token).forceApprove(to, amt);
   }
 
   receive() external payable {}

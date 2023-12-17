@@ -109,14 +109,18 @@ contract VeToken is Auth, ERC721 {
     uint pow = powerOf(tokenId_);
     totalPower -= pow;
 
+    uint index = pows[tokenId_].index;
+    uint[] storage ids_ = ids[msg.sender];
+    if (ids_.length > 1) {
+      uint lastId = ids_[ids_.length - 1];
+      ids_[index] = lastId;
+      pows[lastId].index = index;
+    }
+    ids_.pop();
+    delete pows[tokenId_];
+
     core.safeTransfer(msg.sender, amt);
     _burn(tokenId_);
-
-    uint lastId = ids[msg.sender][ids[msg.sender].length - 1];
-    ids[msg.sender][pows[tokenId_].index] = lastId;
-    pows[lastId].index = pows[tokenId_].index;
-    ids[msg.sender].pop();
-    delete pows[tokenId_];
 
     emit Withdraw(msg.sender, amt, start, long);
   }

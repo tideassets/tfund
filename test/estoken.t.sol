@@ -47,7 +47,7 @@ contract EsTokenTest is Test {
     // Increase time by 30 days
     vm.warp(block.timestamp + 30 days);
 
-    uint claimedAmt = esToken.claim();
+    uint claimedAmt = esToken.claim(address(this));
     assertTrue(claimedAmt > 0, "Claimed amount should be greater than 0");
     assertTrue(50 ether - claimedAmt < 1 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 0, "Balance should be 250");
@@ -60,13 +60,13 @@ contract EsTokenTest is Test {
     testClaim();
 
     vm.warp(block.timestamp + 30 days);
-    uint claimedAmt2 = esToken.claim();
+    uint claimedAmt2 = esToken.claim(address(this));
     assertEq(claimedAmt2, 50 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 0, "Balance should be 250");
     assertEq(ANYONE.balanceOf(address(this)), 800 ether, "ANYONE balance should be reduced");
 
     vm.warp(block.timestamp + 120 days);
-    uint claimedAmt3 = esToken.claim();
+    uint claimedAmt3 = esToken.claim(address(this));
     assertEq(claimedAmt3, 200 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 0, "Balance should be 250");
     assertEq(ANYONE.balanceOf(address(this)), 1000 ether, "ANYONE balance should be reduced");
@@ -111,7 +111,7 @@ contract EsTokenTest is Test {
     assertTrue(vestingId1 > 0, "First vesting ID should be greater than 0");
 
     vm.warp(block.timestamp + 60 days);
-    uint claimedAmt1 = esToken.claim();
+    uint claimedAmt1 = esToken.claim(address(this));
     assertEq(claimedAmt1, 100 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 600 ether, "Balance should be 600");
     assertEq(ANYONE.balanceOf(address(this)), 200 ether, "this balance should be 200 ether");
@@ -119,7 +119,7 @@ contract EsTokenTest is Test {
     assertTrue(vestingId2 > vestingId1, "Second vesting ID should be greater than the first one");
 
     vm.warp(block.timestamp + 60 days);
-    uint claimedAmt2 = esToken.claim();
+    uint claimedAmt2 = esToken.claim(address(this));
     assertEq(claimedAmt2, 200 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 300 ether, "Balance should be 250");
     assertEq(ANYONE.balanceOf(address(this)), 400 ether, "ANYONE balance should be reduced");
@@ -128,19 +128,19 @@ contract EsTokenTest is Test {
     assertTrue(vestingId3 > vestingId2, "Third vesting ID should be greater than the second one");
 
     vm.warp(block.timestamp + 60 days);
-    uint claimedAmt3 = esToken.claim();
+    uint claimedAmt3 = esToken.claim(address(this));
     assertEq(claimedAmt3, 300 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 0, "Balance should be 250");
     assertEq(ANYONE.balanceOf(address(this)), 700 ether, "ANYONE balance should be reduced");
 
     vm.warp(block.timestamp + 60 days);
-    uint claimedAmt4 = esToken.claim();
+    uint claimedAmt4 = esToken.claim(address(this));
     assertEq(claimedAmt4, 200 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 0, "Balance should be 250");
     assertEq(ANYONE.balanceOf(address(this)), 900 ether, "ANYONE balance should be reduced");
 
     vm.warp(block.timestamp + 60 days);
-    uint claimedAmt5 = esToken.claim();
+    uint claimedAmt5 = esToken.claim(address(this));
     assertEq(claimedAmt5, 100 ether, "Claimed amount should be 50");
     assertEq(esToken.balanceOf(address(this)), 0, "Balance should be 250");
     assertEq(ANYONE.balanceOf(address(this)), 1000 ether, "ANYONE balance should be reduced");

@@ -182,7 +182,7 @@ contract Vault is Auth {
       uint max = invetMax(asss_[i], inv_);
       require(amt <= max, "Val/amt error");
       IERC20 ass = IERC20(asss_[i]);
-      ass.approve(inv_, amt);
+      ass.forceApprove(inv_, amt);
     }
     InvLike(inv_).deposit(asss_, amts_, address(this));
   }

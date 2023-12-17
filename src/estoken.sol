@@ -25,8 +25,8 @@ contract EsToken is ERC20, Auth {
   mapping(address => uint[]) public vestingIds;
 
   event Vesting(address indexed usr, uint amount, uint start);
-  event Claim(address indexed usr, uint amount);
-  event Deposit(address indexed usr, uint amount);
+  event Claim(address from, address indexed usr, uint amount);
+  event Deposit(address indexed from, address indexed usr, uint amount);
 
   constructor(address token_, string memory name_, string memory symbol_) ERC20(name_, symbol_) {
     token = IERC20(token_);
@@ -56,8 +56,8 @@ contract EsToken is ERC20, Auth {
     return (vest.amt, vest.claimed, vest.start);
   }
 
-  function claimable() external view returns (uint) {
-    uint[] memory ids = vestingIds[msg.sender];
+  function claimable(address usr) external view returns (uint) {
+    uint[] memory ids = vestingIds[usr];
     uint amount = 0;
     for (uint i = 0; i < ids.length; i++) {
       (uint amt,) = _claimable(ids[i]);
@@ -85,7 +85,7 @@ contract EsToken is ERC20, Auth {
     return (amt, d == VESTING_DURATION);
   }
 
-  function claim() external whenNotPaused returns (uint) {
+  function claim(address to) external whenNotPaused returns (uint) {
     uint[] memory ids = vestingIds[msg.sender];
     uint amount = 0;
     for (uint i = 0; i < ids.length; i++) {
@@ -102,8 +102,8 @@ contract EsToken is ERC20, Auth {
     if (amount == 0) {
       return 0;
     }
-    token.safeTransfer(msg.sender, amount);
-    emit Claim(msg.sender, amount);
+    token.safeTransfer(to, amount);
+    emit Claim(msg.sender, to, amount);
     return amount;
   }
 
@@ -111,7 +111,7 @@ contract EsToken is ERC20, Auth {
     require(amt > 0, "TsToken/zero-amount");
     token.safeTransferFrom(msg.sender, address(this), amt);
     _mint(usr, amt);
-    emit Deposit(usr, amt);
+    emit Deposit(msg.sender, usr, amt);
   }
 
   error NoTransfer();
