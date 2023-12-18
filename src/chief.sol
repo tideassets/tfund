@@ -169,6 +169,10 @@ contract TChief is DSRoles, TApprovals {
     enabled;
     revert();
   }
+
+  function onERC721Received(address, address, uint, bytes memory) public pure returns (bytes4) {
+    return 0x150b7a02;
+  }
 }
 
 contract TChiefFab {

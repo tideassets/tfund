@@ -86,8 +86,8 @@ contract EsTokenTest is Test {
     assertTrue(vestingId2 > vestingId1, "Second vesting ID should be greater than the first one");
 
     uint[] memory ids = new uint[](2);
-    ids[0] = esToken.vestingIds(address(this), 0);
-    ids[1] = esToken.vestingIds(address(this), 1);
+    ids[0] = esToken.vids(address(this), 0);
+    ids[1] = esToken.vids(address(this), 1);
     assertEq(ids.length, 2, "There should be two vesting IDs");
     assertEq(ids[0], vestingId1, "The first vesting ID should match");
     assertEq(ids[1], vestingId2, "The second vesting ID should match");

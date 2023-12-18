@@ -20,7 +20,6 @@ contract VeToken is Auth, ERC721 {
     uint start;
     Long long;
     uint pow;
-    uint index;
   }
 
   enum Long {
@@ -34,10 +33,12 @@ contract VeToken is Auth, ERC721 {
   uint public constant POW_DIVISOR = 1000000;
   uint public totalPower;
 
-  mapping(uint => Pow) public pows; // key is tokenId
-  mapping(address => uint[]) public ids; // key is usr address, value is tokenIds
   mapping(Long => uint) public mults;
   mapping(Long => uint) public longs;
+
+  mapping(uint => Pow) public pows; // key is tokenId
+  mapping(address => uint[]) public ids; // key is usr address, value is tokenIds
+  mapping(address => mapping(uint => uint)) public indexs; // key is usr address, value is tokenId => index
 
   event Deposit(address indexed usr, uint amt, uint start, Long long);
   event Withdraw(address indexed usr, uint amt, uint start, Long long);
@@ -60,9 +61,9 @@ contract VeToken is Auth, ERC721 {
     core = IERC20(core_);
   }
 
-  function powerOf(uint tokenId_) public view returns (uint) {
-    Long l = pows[tokenId_].long;
-    uint amt = pows[tokenId_].amt;
+  function powerOf(uint id) public view returns (uint) {
+    Long l = pows[id].long;
+    uint amt = pows[id].amt;
     uint mult = mults[l];
     return (mult * amt) / POW_DIVISOR;
   }
@@ -85,47 +86,61 @@ contract VeToken is Auth, ERC721 {
     core.safeTransferFrom(msg.sender, address(this), amt);
 
     tokenId++;
-    Pow memory pow = Pow(amt, block.timestamp, long, 0, 0);
+    Pow memory pow = Pow(amt, block.timestamp, long, 0);
     pow.pow = mults[long] * amt / POW_DIVISOR;
     totalPower += pow.pow;
-    pow.index = ids[msg.sender].length;
     pows[tokenId] = pow;
 
     _mint(msg.sender, tokenId);
 
+    indexs[msg.sender][tokenId] = ids[msg.sender].length;
     ids[msg.sender].push(tokenId);
 
     emit Deposit(msg.sender, amt, block.timestamp, long);
     return tokenId;
   }
 
-  function withdraw(uint tokenId_) external whenNotPaused {
-    require(ownerOf(tokenId_) == msg.sender, "VeToken/tokenId not belong you");
-    uint start = pows[tokenId_].start;
-    Long long = pows[tokenId_].long;
+  function withdraw(uint id) external whenNotPaused {
+    require(ownerOf(id) == msg.sender, "VeToken/tokenId not belong you");
+    Pow memory pow = pows[id];
+    uint start = pow.start;
+    Long long = pow.long;
     require(block.timestamp >= start + longs[long], "VeToken/time is't up");
 
-    uint amt = pows[tokenId_].amt;
-    uint pow = powerOf(tokenId_);
-    totalPower -= pow;
+    uint amt = pow.amt;
+    totalPower -= powerOf(id);
+    delete pows[id];
 
-    uint index = pows[tokenId_].index;
-    uint[] storage ids_ = ids[msg.sender];
-    if (ids_.length > 1) {
-      uint lastId = ids_[ids_.length - 1];
-      ids_[index] = lastId;
-      pows[lastId].index = index;
-    }
-    ids_.pop();
-    delete pows[tokenId_];
+    _rmUsrId(msg.sender, id);
 
+    _burn(id);
     core.safeTransfer(msg.sender, amt);
-    _burn(tokenId_);
 
     emit Withdraw(msg.sender, amt, start, long);
   }
 
-  // function transferFrom(address, address, uint) public override auth {
-  //   super.transferFrom(address, address, uint);
-  // }
+  function _rmUsrId(address usr, uint id) internal {
+    mapping(uint => uint) storage indexs_ = indexs[usr];
+    uint index = indexs_[id];
+    uint[] storage ids_ = ids[usr];
+    require(ids_.length > 0, "VeToken/ids is empty");
+    require(ids_[index] == id, "VeToken/ids index not match tokenId");
+
+    if (ids_.length > 1) {
+      uint lastId = ids_[ids_.length - 1];
+      ids_[index] = lastId;
+      indexs_[lastId] = index;
+    }
+    ids_.pop();
+    delete indexs_[id];
+  }
+
+  function transferFrom(address from, address to, uint id) public override {
+    _rmUsrId(from, id);
+
+    indexs[to][id] = ids[to].length;
+    ids[to].push(id);
+
+    safeTransferFrom(from, to, id);
+  }
 }

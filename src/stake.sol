@@ -10,7 +10,7 @@ import {Auth} from "./auth.sol";
 
 contract RTokens is Auth {
   address[] public rtokens;
-  mapping(address => uint) public rtokenIndex;
+  mapping(address => uint) public indexs;
 
   constructor() {
     rtokens.push(address(0));
@@ -29,21 +29,21 @@ contract RTokens is Auth {
   }
 
   function _addRtoken(address rtoken) internal virtual {
-    require(rtokenIndex[rtoken] == 0, "already added");
-    rtokenIndex[rtoken] = rtokens.length;
+    require(indexs[rtoken] == 0, "already added");
+    indexs[rtoken] = rtokens.length;
     rtokens.push(rtoken);
   }
 
   function _delRtoken(address rtoken) internal virtual {
-    require(rtokenIndex[rtoken] > 0, "not added");
+    require(indexs[rtoken] > 0, "not added");
     if (rtokens.length > 1) {
-      uint index = rtokenIndex[rtoken];
+      uint index = indexs[rtoken];
       address last = rtokens[rtokens.length - 1];
       rtokens[index] = last;
-      rtokenIndex[last] = index;
+      indexs[last] = index;
     }
     rtokens.pop();
-    delete rtokenIndex[rtoken];
+    delete indexs[rtoken];
   }
 }
 

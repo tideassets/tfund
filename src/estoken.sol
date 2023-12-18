@@ -22,7 +22,7 @@ contract EsToken is ERC20, Auth {
   uint public VESTING_DURATION = 180 days;
 
   mapping(uint => Vest) public vests;
-  mapping(address => uint[]) public vestingIds;
+  mapping(address => uint[]) public vids;
 
   event Vesting(address indexed usr, uint amount, uint start);
   event Claim(address from, address indexed usr, uint amount);
@@ -42,13 +42,13 @@ contract EsToken is ERC20, Auth {
     vestingId++;
     Vest memory vest = Vest(amt, 0, block.timestamp);
     vests[vestingId] = vest;
-    vestingIds[msg.sender].push(vestingId);
+    vids[msg.sender].push(vestingId);
     emit Vesting(msg.sender, amt, block.timestamp);
     return vestingId;
   }
 
   function vestings(address usr) external view returns (uint[] memory) {
-    return vestingIds[usr];
+    return vids[usr];
   }
 
   function vestingInfo(uint vestingId_) external view returns (uint, uint, uint) {
@@ -57,7 +57,7 @@ contract EsToken is ERC20, Auth {
   }
 
   function claimable(address usr) external view returns (uint) {
-    uint[] memory ids = vestingIds[usr];
+    uint[] memory ids = vids[usr];
     uint amount = 0;
     for (uint i = 0; i < ids.length; i++) {
       (uint amt,) = _claimable(ids[i]);
@@ -86,7 +86,7 @@ contract EsToken is ERC20, Auth {
   }
 
   function claim(address to) external whenNotPaused returns (uint) {
-    uint[] memory ids = vestingIds[msg.sender];
+    uint[] memory ids = vids[msg.sender];
     uint amount = 0;
     for (uint i = 0; i < ids.length; i++) {
       (uint amt, bool clear) = _claimable(ids[i]);
