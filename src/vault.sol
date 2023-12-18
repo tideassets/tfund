@@ -52,12 +52,13 @@ contract Vault is Auth {
   TTokenLike public core; // TDT, TCAv1, TCAv2
   OracleLike public coreOracle; // oracle for core
   bool public inited = false;
+  uint public excfee; //// Fee charged for the part that exceeds the purchase or sale
 
-  uint constant ONE = 1.0e18;
-  uint constant PENSENT_DIVISOR = 10000;
+  uint constant ONE = 1e18;
 
   constructor(address core_) {
     core = TTokenLike(core_);
+    excfee = ONE / 10;
   }
 
   function corePrice() public view returns (int) {
@@ -74,6 +75,10 @@ contract Vault is Auth {
 
   function invsLen() public view returns (uint) {
     return invetors.length;
+  }
+
+  function setFee(uint fee_) external auth {
+    excfee = fee_;
   }
 
   function setAsset(address ass, uint min, uint max, address oracle) external auth {
@@ -122,7 +127,7 @@ contract Vault is Auth {
   function invetMax(address ass, address inv) public view returns (uint) {
     uint balance = assetAmount(ass);
     uint maxPersent = invs[inv][ass].max;
-    uint max = (balance * maxPersent) / PENSENT_DIVISOR;
+    uint max = (balance * maxPersent) / ONE;
 
     InvLike invetor = InvLike(inv);
     uint damt = invetor.depositedAmount(address(this), ass);
@@ -169,7 +174,7 @@ contract Vault is Auth {
     if (assVal < 0) {
       assVal = 0;
     }
-    return (PENSENT_DIVISOR * uint(assVal)) / uint(total);
+    return (ONE * uint(assVal)) / uint(total);
   }
 
   function assetPersent(address ass) public view returns (uint) {
@@ -197,7 +202,7 @@ contract Vault is Auth {
       return 0;
     }
     uint exc = p - asss[ass].max;
-    return (exc * amt) / PENSENT_DIVISOR / 10;
+    return (exc * amt) / ONE * excfee / ONE;
   }
 
   function sellFee(address ass, uint amt) public view returns (uint) {
@@ -206,7 +211,7 @@ contract Vault is Auth {
       return 0;
     }
     uint exc = asss[ass].min - p;
-    return (exc * amt) / PENSENT_DIVISOR / 10;
+    return (exc * amt) / ONE * excfee / ONE;
   }
 
   // no buy fee

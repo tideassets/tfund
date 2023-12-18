@@ -76,6 +76,8 @@ contract VaultTest is Test {
   User u1;
   User u2;
 
+  uint constant ONE = 1e18;
+
   function setUp() public {
     TToken tdt = new TToken(address(0x1234), "TDT token", "TDT");
     TDT = IERC20(address(tdt));
@@ -150,11 +152,11 @@ contract VaultTest is Test {
     o4.setLastAnswer(2.0e18);
     o5.setLastAnswer(5.0e18);
 
-    val.setAsset(address(TCAv1), 1000, 4000, address(o1));
-    val.setAsset(address(TCAv2), 2000, 5000, address(o2));
-    val.setAsset(address(tsUSD), 3000, 6000, address(o3));
-    val.setAsset(address(T1), 1000, 2000, address(o4));
-    val.setAsset(address(T2), 2000, 3000, address(o5));
+    val.setAsset(address(TCAv1), 10 * ONE / 100, 40 * ONE / 100, address(o1));
+    val.setAsset(address(TCAv2), 20 * ONE / 100, 50 * ONE / 100, address(o2));
+    val.setAsset(address(tsUSD), 30 * ONE / 100, 60 * ONE / 100, address(o3));
+    val.setAsset(address(T1), 10 * ONE / 100, 20 * ONE / 100, address(o4));
+    val.setAsset(address(T2), 20 * ONE / 100, 30 * ONE / 100, address(o5));
   }
 
   function testInitAssets() public {
