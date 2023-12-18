@@ -141,6 +141,6 @@ contract VeToken is Auth, ERC721 {
     indexs[to][id] = ids[to].length;
     ids[to].push(id);
 
-    safeTransferFrom(from, to, id);
+    super.transferFrom(from, to, id);
   }
 }

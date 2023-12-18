@@ -59,6 +59,8 @@ contract RewarderAccumTest is Test {
   MToken public reward;
   MToken public asset;
 
+  uint constant RAY = 10 ** 27;
+
   function setUp() public {
     esToken = new MEsToken();
     rewardValut = new MRewardVault();
@@ -67,6 +69,7 @@ contract RewarderAccumTest is Test {
 
     staker = new Stakex("Staker", "STK", address(asset));
     R = new RewarderAccum(address(reward), address(staker), address(rewardValut));
+    // R.setRPS(RAY * 315360 / 1000000 / (1 days * 365)); // yearly rate
     R.setRPS(1e9);
 
     reward.mint(address(rewardValut), 1e9 ether);
@@ -76,6 +79,10 @@ contract RewarderAccumTest is Test {
     asset.approve(address(staker), type(uint).max);
 
     staker.addRtoken(address(reward), address(R));
+  }
+
+  function onERC721Received(address, address, uint, bytes memory) public pure returns (bytes4) {
+    return 0x150b7a02;
   }
 
   function testStake() public {
@@ -94,18 +101,18 @@ contract RewarderAccumTest is Test {
     assertEq(staker.balanceOf(address(this)), 1 ether);
 
     vm.warp(block.timestamp + 1 seconds);
-    assertEq(R.claimable(address(this)), 1e9, "1 second should be same");
+    assertEq(R.claimable(address(this)), 1e9, "assert 1 year");
     assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
-    R.claim(address(this), address(this));
-    assertEq(reward.balanceOf(address(this)), 1e9, "balance should be same 1 secon");
+    R.claim(address(this));
+    assertEq(reward.balanceOf(address(this)), 1e9, "assert 2 should be same");
 
     vm.warp(block.timestamp + 100 seconds);
     assertEq(R.claimable(address(this)), 100 * 1e9, "100 second should be same");
-    R.claim(address(this), address(this));
+    R.claim(address(this));
     assertEq(reward.balanceOf(address(this)), 101e9, "101 second should be same");
     vm.warp(block.timestamp + 100 seconds);
     assertEq(R.claimable(address(this)), 100 * 1e9, "100 second should be same");
-    R.claim(address(this), address(this));
+    R.claim(address(this));
     assertEq(reward.balanceOf(address(this)), 201e9, "201 second should be same");
   }
 
@@ -154,7 +161,7 @@ contract RewarderCycleTest is Test {
     _testStake();
 
     assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
-    R.claim(address(this), address(this));
+    R.claim(address(this));
     assertEq(R.cycleId(), 3, "cycle id should be 3");
     assertEq(R.ucid(address(this)), 3, "cycle id should be 3");
     assertEq(staker.balanceOf(address(this)), 1 ether);
@@ -179,7 +186,7 @@ contract RewarderCycleTest is Test {
     R.newCycle(1e9);
     assertEq(R.claimable(address(this)), 6e9, "should be 6e9");
     uint balance = reward.balanceOf(address(this));
-    R.claim(address(this), address(this));
+    R.claim(address(this));
     assertEq(reward.balanceOf(address(this)), balance + 6e9, "balance should be same");
   }
 

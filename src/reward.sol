@@ -62,12 +62,8 @@ abstract contract RewarderBase is Auth {
 
   function _unstake(address usr, uint amt) internal virtual;
 
-  function claim(address usr, address recv) external whenNotPaused {
-    require(
-      msg.sender == address(usr) || msg.sender == address(staker),
-      "Rewarder/not usr owner or staker"
-    );
-    uint amount = _claim(usr);
+  function claim(address recv) external whenNotPaused {
+    uint amount = _claim(msg.sender);
     if (address(esToken) != address(0)) {
       IERC20(rewardToken).safeTransferFrom(rewardValut, address(this), amount);
       IERC20(rewardToken).forceApprove(address(esToken), amount);
@@ -75,7 +71,7 @@ abstract contract RewarderBase is Auth {
     } else {
       IERC20(rewardToken).safeTransferFrom(rewardValut, recv, amount);
     }
-    emit Claim(usr, recv, amount);
+    emit Claim(msg.sender, recv, amount);
   }
 
   function _claim(address usr) internal virtual returns (uint);
@@ -174,18 +170,20 @@ contract RewarderCycle is RewarderBase {
   }
 }
 
+// The reward for staking ONE token for 1000 seconds is
+// the same as the reward for staking 1000 tokens for 1 second
 contract RewarderAccum is RewarderBase {
   using SafeERC20 for IERC20;
 
-  uint public rewardPerSecond;
+  uint public OPSR; // ONE token per second reward
 
-  mapping(address => uint) public usrUpdateTime;
-  mapping(address => uint) public usrAccumulatedReward;
+  mapping(address => uint) public upts; // user update times
+  mapping(address => uint) public uaas; // user accumulated amounts: uaas = upts * staker.balanceOf
 
   constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
-  function setRPS(uint amount) external auth {
-    rewardPerSecond = amount;
+  function setRPS(uint opsr) external auth {
+    OPSR = opsr;
   }
 
   function _stake(address usr, uint) internal override {
@@ -197,22 +195,22 @@ contract RewarderAccum is RewarderBase {
   }
 
   function _update(address usr) internal {
-    uint u = block.timestamp - usrUpdateTime[usr];
-    uint amt = accumulatedAmount(usr, u);
-    usrAccumulatedReward[usr] = amt;
-    usrUpdateTime[usr] = block.timestamp;
+    uint u = block.timestamp - upts[usr];
+    uint amt = accumAmt(usr, u);
+    uaas[usr] = amt;
+    upts[usr] = block.timestamp;
   }
 
   function claimable(address usr) public view override returns (uint) {
-    uint u = block.timestamp - usrUpdateTime[usr];
-    uint amt = accumulatedAmount(usr, u);
-    uint reward = amt * rewardPerSecond / ONE;
-    return reward;
+    uint du = block.timestamp - upts[usr];
+    uint amt = accumAmt(usr, du);
+    uint r = amt * OPSR / ONE;
+    return r;
   }
 
-  function accumulatedAmount(address usr, uint duration) public view returns (uint) {
-    uint amt = usrAccumulatedReward[usr];
-    amt += duration * staker.balanceOf(usr);
+  function accumAmt(address usr, uint du) public view returns (uint) {
+    uint amt = uaas[usr];
+    amt += du * staker.balanceOf(usr);
     return amt;
   }
 
@@ -220,19 +218,8 @@ contract RewarderAccum is RewarderBase {
     _update(usr);
 
     uint reward = claimable(usr);
-    usrAccumulatedReward[usr] = 0;
+    uaas[usr] = 0;
+    upts[usr] = block.timestamp;
     return reward;
   }
 }
-
-// 抵押资产,获取排放奖励
-// 抵押方式: 1. 周期性抵押; 2. 持续抵押
-// 周期性抵押: 每个周期结束时,计算每个周期的奖励,并将奖励存入下个周期
-// 持续抵押: 每次抵押或解押时,计算奖励,并将奖励存入下个周期
-// 周期性抵押的奖励计算方式: 周期奖励 = 周期奖励总量 / 总抵押量 * 用户抵押量
-// 持续抵押的奖励计算方式: 奖励 = OATP(one asset token one second)每秒奖励 / 总抵押累积量 * 用户抵押累积量
-// 抵押累积量就是多少个OATP累积的量. 比如, OATP是1, 如果100个币抵押100秒, 则抵押累积量是10000
-// 奖励代币可以是任意ERC20代币或者ES代币, 如果奖励代币是ES代币,则奖励代币会自动存入ES代币合约
-// 奖励代币和抵押代币可以是同一个代币, 也可以是不同的代币. 但是抵押代币必须是ERC20代币, 如果是NFT代币, 则需要先转换成ERC20代币
-// 奖励代币需要从奖励金库地址中获取, 奖励金库地址可以是任意地址, 但是需要先将奖励代币存入奖励金库地址
-// 一种抵押代币可以有多个奖励代币

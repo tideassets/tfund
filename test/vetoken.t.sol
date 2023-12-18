@@ -5,6 +5,10 @@ import {Test, console2} from "forge-std/Test.sol";
 import {VeToken, IERC20} from "../src/vetoken.sol";
 import {TToken, Auth} from "../src/token.sol";
 
+interface NFTLike {
+  function transferFrom(address, address, uint) external;
+}
+
 contract User is Auth {
   function doDeposit(VeToken ve, uint amount, VeToken.Long long) external auth returns (uint) {
     return ve.deposit(amount, long);
@@ -17,12 +21,20 @@ contract User is Auth {
   function approve(address token, address spender, uint amt) external auth {
     IERC20(token).approve(spender, amt);
   }
+
+  function transferNFT(address nft, address to, uint id) external auth {
+    NFTLike(nft).transferFrom(address(this), to, id);
+  }
 }
 
 contract VeTokenTest is Test {
   VeToken public vt;
   IERC20 TDT;
   User u;
+
+  function onERC721Received(address, address, uint, bytes memory) public pure returns (bytes4) {
+    return 0x150b7a02;
+  }
 
   function setUp() public {
     TToken tdt = new TToken(address(0x1234), "TDT token", "TDT");
@@ -36,11 +48,15 @@ contract VeTokenTest is Test {
   function testDeposit() public {
     u.doDeposit(vt, 100 ether, VeToken.Long.ONEMON);
     uint p = vt.powerOf(1);
-    assertEq(p, 100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6, "powerOf should be 100 * 1.025 ** 1");
+    assertEq(
+      p, 100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6, "powerOf should be 100 * 1.025 ** 1"
+    );
 
     u.doDeposit(vt, 100 ether, VeToken.Long.SIXMON);
     p = vt.powerOf(2);
-    assertEq(p, 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6, "powerOf should be 100 * 1.025 ** 6");
+    assertEq(
+      p, 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6, "powerOf should be 100 * 1.025 ** 6"
+    );
 
     u.doDeposit(vt, 100 ether, VeToken.Long.ONEYEAR);
     p = vt.powerOf(3);
@@ -147,5 +163,70 @@ contract VeTokenTest is Test {
     assertEq(TDT.balanceOf(address(u)), 1000 ether, "TDT should be 1000");
     assertEq(TDT.balanceOf(address(vt)), 0, "TDT should be 0");
     assertEq(vt.balanceOf(address(u)), 0, "veTDT should be 0");
+  }
+
+  function testTransferFrom() public {
+    u.doDeposit(vt, 100 ether, VeToken.Long.ONEMON);
+    u.doDeposit(vt, 100 ether, VeToken.Long.SIXMON);
+    u.doDeposit(vt, 100 ether, VeToken.Long.ONEYEAR);
+    u.doDeposit(vt, 100 ether, VeToken.Long.TWOYEAR);
+    u.doDeposit(vt, 100 ether, VeToken.Long.FOURYEAR);
+
+    uint p = vt.powerOf(address(u));
+    assertEq(
+      p,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
+    );
+
+    u.transferNFT(address(vt), address(this), 1);
+    p = vt.powerOf(address(this));
+    assertEq(p, 100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6, "powerOf should be 100 * 1.025 ");
+
+    u.transferNFT(address(vt), address(this), 2);
+    p = vt.powerOf(address(this));
+    assertEq(
+      p,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6,
+      "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12"
+    );
+
+    u.transferNFT(address(vt), address(this), 3);
+    p = vt.powerOf(address(this));
+    assertEq(
+      p,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6,
+      "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12"
+    );
+
+    u.transferNFT(address(vt), address(this), 4);
+    p = vt.powerOf(address(this));
+    assertEq(
+      p,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6,
+      "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24"
+    );
+
+    u.transferNFT(address(vt), address(this), 5);
+    p = vt.powerOf(address(this));
+    assertEq(
+      p,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
+    );
   }
 }
