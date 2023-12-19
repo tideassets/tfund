@@ -5,7 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {DSRoles, DSAuth, DSAuthority} from "ds-roles/roles.sol";
-import {IOUToken} from "./IOU.sol";
+import {IOU20} from "./IOU.sol";
 
 interface IOULike {
   function mint(address, uint) external;
@@ -175,7 +175,7 @@ contract TChief is DSRoles, TApprovals {
 
 contract TChiefFab {
   function newChief(address gov, uint MAX_YAYS) public returns (TChief chief) {
-    IOUToken iou = new IOUToken('IOU token', "IOU");
+    IOU20 iou = new IOU20('IOU token', "IOU");
     chief = new TChief(gov, address(iou), MAX_YAYS);
     iou.transferOwnership(address(chief));
   }

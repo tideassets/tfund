@@ -8,45 +8,6 @@ import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
 
-contract RTokens is Auth {
-  address[] public rtokens;
-  mapping(address => uint) public indexs;
-
-  constructor() {
-    rtokens.push(address(0));
-  }
-
-  function count() public view returns (uint) {
-    return rtokens.length;
-  }
-
-  function addRtoken(address rtoken) external auth {
-    _addRtoken(rtoken);
-  }
-
-  function delRtoken(address rtoken) external auth {
-    _delRtoken(rtoken);
-  }
-
-  function _addRtoken(address rtoken) internal virtual {
-    require(indexs[rtoken] == 0, "already added");
-    indexs[rtoken] = rtokens.length;
-    rtokens.push(rtoken);
-  }
-
-  function _delRtoken(address rtoken) internal virtual {
-    require(indexs[rtoken] > 0, "not added");
-    if (rtokens.length > 1) {
-      uint index = indexs[rtoken];
-      address last = rtokens[rtokens.length - 1];
-      rtokens[index] = last;
-      indexs[last] = index;
-    }
-    rtokens.pop();
-    delete indexs[rtoken];
-  }
-}
-
 interface RewarderLike {
   function stake(address, uint) external;
   function unstake(address, uint) external;
@@ -57,23 +18,30 @@ contract Stakex is ERC20, Auth {
 
   IERC20 public stkToken;
 
-  RTokens public rtokens;
-  mapping(address => RewarderLike) public rewarders; // key is rtoken
+  // rs["TDT-A"] = naddress(ew RewarderCycle())
+  mapping(bytes32 => address) public rs;
+  bytes32[] public ra;
+  mapping(bytes32 => uint) ri;
 
   constructor(string memory name_, string memory symbol_, address stkToken_) ERC20(name_, symbol_) {
     stkToken = IERC20(stkToken_);
-    rtokens = new RTokens();
   }
 
-  function addRtoken(address rtoken, address rewarder) external auth {
-    rtokens.addRtoken(rtoken);
-    RewarderLike rl = RewarderLike(rewarder);
-    rewarders[rtoken] = rl;
+  function addRewarder(bytes32 name, address rewarder) external auth {
+    rs[name] = rewarder;
+    ra.push(name);
+    ri[name] = ra.length;
   }
 
-  function delRtoken(address rtoken) external auth {
-    rtokens.delRtoken(rtoken);
-    delete rewarders[rtoken];
+  function delRewarder(bytes32 name) external auth {
+    bytes32 last = ra[ra.length - 1];
+    if (name != last) {
+      uint i = ri[name] - 1;
+      ri[last] = i;
+    }
+    ra.pop();
+    delete ri[name];
+    delete rs[name];
   }
 
   function stake(address to, uint amt) external whenNotPaused {
@@ -86,30 +54,44 @@ contract Stakex is ERC20, Auth {
   }
 
   function _stake(address to, uint amt) internal {
-    uint rtlen = rtokens.count();
-    mapping(address => RewarderLike) storage rewarders_ = rewarders;
-    for (uint i = 1; i < rtlen; i++) {
-      // should skip 0
-      address rt = rtokens.rtokens(i);
-      rewarders_[rt].stake(to, amt);
+    uint len = ra.length;
+    for (uint i = 0; i < len; i++) {
+      address r = rs[ra[i]];
+      RewarderLike(r).stake(to, amt);
     }
   }
 
   function unstake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
-    _unstake(to, amt);
+    _unstake(msg.sender, amt);
     _burn(msg.sender, amt);
     stkToken.safeTransfer(to, amt);
   }
 
   function _unstake(address to, uint amt) internal {
-    uint rtlen = rtokens.count();
-    mapping(address => RewarderLike) storage rewarders_ = rewarders;
-    for (uint i = 1; i < rtlen; i++) {
-      // should skip 0
-      address rt = rtokens.rtokens(i);
-      rewarders_[rt].unstake(to, amt);
+    uint len = ra.length;
+    for (uint i = 0; i < len; i++) {
+      address r = rs[ra[i]];
+      RewarderLike(r).unstake(to, amt);
     }
+  }
+
+  function transfer(address to, uint amt) public override returns (bool) {
+    _unstake(msg.sender, amt);
+    _stake(to, amt);
+
+    bool ok = super.transfer(to, amt);
+    require(ok, "VeToken/transfer-failed");
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint amt) public override returns (bool) {
+    _unstake(from, amt);
+    _stake(to, amt);
+
+    bool ok = super.transferFrom(from, to, amt);
+    require(ok, "VeToken/transfer-failed");
+    return true;
   }
 }

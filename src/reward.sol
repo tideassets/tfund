@@ -25,7 +25,6 @@ abstract contract RewarderBase is Auth {
   StakerLike public staker;
   address public rewardValut;
   EsTokenLike public esToken;
-  // bool public compound;
 
   uint public constant ONE = 10 ** 18; // one coin
 
@@ -33,10 +32,6 @@ abstract contract RewarderBase is Auth {
     rewardToken = IERC20(rt);
     staker = StakerLike(staker_);
     rewardValut = rv;
-    // if (compound) {
-    //   require(address(staker.stkToken()) == rt, "Rewarder/compound: reward token not stake token");
-    // }
-    // compound = compound_;
   }
 
   modifier onlyStaker() {
@@ -74,6 +69,10 @@ abstract contract RewarderBase is Auth {
     emit Claim(msg.sender, recv, amount);
   }
 
+  function compound(address usr) external {
+
+  }
+
   function _claim(address usr) internal virtual returns (uint);
 
   function claimable(address usr) public view virtual returns (uint);
@@ -98,6 +97,8 @@ contract RewarderCycle is RewarderBase {
   // key is user, value is claimeded cycle id
   mapping(address => uint) public ucid;
 
+  mapping(address => uint) public usid;
+
   uint public constant MIN = 1;
 
   constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
@@ -105,7 +106,6 @@ contract RewarderCycle is RewarderBase {
   function _newCycle(uint rps) internal {
     cycleId++;
     osr[cycleId] = rps; //(ramt * ONE) / totalStakes;
-    totalStakes = staker.totalSupply();
   }
 
   function newCycle(uint rps) external {
@@ -118,15 +118,19 @@ contract RewarderCycle is RewarderBase {
     uint balance = staker.balanceOf(usr);
     mapping(uint => uint) storage us_ = us[usr];
     us_[cid + 1] = balance + amt;
+    usid[usr] = cid + 1;
   }
 
   // _unstake reduce stake amount from current cycle
   function _unstake(address usr, uint amt) internal override {
-    totalStakes -= amt;
-
     uint cid = cycleId;
-    uint balance = staker.balanceOf(usr);
     mapping(uint => uint) storage us_ = us[usr];
+
+    uint uid = usid[usr];
+    require(uid <= cid, "RewarderCycle/uid > cid");
+    usid[usr] = cid;
+
+    uint balance = staker.balanceOf(usr);
     uint n = balance - amt;
     us_[cid] = n > 0 ? n : MIN;
   }

@@ -4,12 +4,15 @@
 //
 pragma solidity ^0.8.20;
 
-import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {
+  ERC721Enumerable,
+  ERC721
+} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
 
-contract VeToken is Auth, ERC721 {
+contract VeToken is Auth, ERC721Enumerable {
   using SafeERC20 for IERC20;
 
   IERC20 public core;
@@ -37,8 +40,8 @@ contract VeToken is Auth, ERC721 {
   mapping(Long => uint) public longs;
 
   mapping(uint => Pow) public pows; // key is tokenId
-  mapping(address => uint[]) public ids; // key is usr address, value is tokenIds
-  mapping(address => mapping(uint => uint)) public indexs; // key is usr address, value is tokenId => index
+  // mapping(address => uint[]) public ids; // key is usr address, value is tokenIds
+  // mapping(address => mapping(uint => uint)) public indexs; // key is usr address, value is tokenId => index
 
   event Deposit(address indexed usr, uint amt, uint start, Long long);
   event Withdraw(address indexed usr, uint amt, uint start, Long long);
@@ -69,14 +72,11 @@ contract VeToken is Auth, ERC721 {
   }
 
   // user power
-  function powerOf(address user) public view returns (uint) {
-    uint[] memory ids_ = ids[user];
+  function powerOf(address usr) public view returns (uint) {
     uint p = 0;
-    for (uint i = 0; i < ids_.length; i++) {
-      uint id = ids_[i];
-      if (ownerOf(id) != user) {
-        continue;
-      }
+    uint len = balanceOf(usr);
+    for (uint i = 0; i < len; ++i) {
+      uint id = tokenOfOwnerByIndex(usr, i);
       p += powerOf(id);
     }
     return p;
@@ -93,9 +93,6 @@ contract VeToken is Auth, ERC721 {
 
     _mint(msg.sender, tokenId);
 
-    indexs[msg.sender][tokenId] = ids[msg.sender].length;
-    ids[msg.sender].push(tokenId);
-
     emit Deposit(msg.sender, amt, block.timestamp, long);
     return tokenId;
   }
@@ -111,36 +108,9 @@ contract VeToken is Auth, ERC721 {
     totalPower -= powerOf(id);
     delete pows[id];
 
-    _rmUsrId(msg.sender, id);
-
     _burn(id);
     core.safeTransfer(msg.sender, amt);
 
     emit Withdraw(msg.sender, amt, start, long);
-  }
-
-  function _rmUsrId(address usr, uint id) internal {
-    mapping(uint => uint) storage indexs_ = indexs[usr];
-    uint index = indexs_[id];
-    uint[] storage ids_ = ids[usr];
-    require(ids_.length > 0, "VeToken/ids is empty");
-    require(ids_[index] == id, "VeToken/ids index not match tokenId");
-
-    if (ids_.length > 1) {
-      uint lastId = ids_[ids_.length - 1];
-      ids_[index] = lastId;
-      indexs_[lastId] = index;
-    }
-    ids_.pop();
-    delete indexs_[id];
-  }
-
-  function transferFrom(address from, address to, uint id) public override {
-    _rmUsrId(from, id);
-
-    indexs[to][id] = ids[to].length;
-    ids[to].push(id);
-
-    super.transferFrom(from, to, id);
   }
 }
