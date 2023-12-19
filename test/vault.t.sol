@@ -20,26 +20,26 @@ contract MockOracle is OracleLike {
 }
 
 interface IVault {
-  function buyExactIn(address ass, address to, uint amt, uint minOut) external returns (uint);
-  function buyExactOut(address ass, address to, uint maxIn, uint out) external returns (uint);
-  function sellExactIn(address ass, address to, uint amt, uint minOut) external returns (uint);
-  function sellExactOut(address ass, address to, uint maxIn, uint out) external returns (uint);
+  function buyExactIn(bytes32 ass, address to, uint amt, uint minOut) external returns (uint);
+  function buyExactOut(bytes32 ass, address to, uint maxIn, uint out) external returns (uint);
+  function sellExactIn(bytes32 ass, address to, uint amt, uint minOut) external returns (uint);
+  function sellExactOut(bytes32 ass, address to, uint maxIn, uint out) external returns (uint);
 }
 
 contract User is Auth {
-  function buyTDTExactIn(IVault val, address ass, uint amt, uint minOut) public returns (uint) {
+  function buyTDTExactIn(IVault val, bytes32 ass, uint amt, uint minOut) public returns (uint) {
     return val.buyExactIn(ass, address(this), amt, minOut);
   }
 
-  function buyTDTExactOut(IVault val, address ass, uint amt, uint minOut) public returns (uint) {
+  function buyTDTExactOut(IVault val, bytes32 ass, uint amt, uint minOut) public returns (uint) {
     return val.buyExactOut(ass, address(this), amt, minOut);
   }
 
-  function sellTDTExactIn(IVault val, address ass, uint amt, uint minOut) public returns (uint) {
+  function sellTDTExactIn(IVault val, bytes32 ass, uint amt, uint minOut) public returns (uint) {
     return val.sellExactIn(ass, address(this), amt, minOut);
   }
 
-  function sellTDTExactOut(IVault val, address ass, uint maxIn, uint out) public returns (uint) {
+  function sellTDTExactOut(IVault val, bytes32 ass, uint maxIn, uint out) public returns (uint) {
     return val.sellExactOut(ass, address(this), maxIn, out);
   }
 
@@ -83,7 +83,7 @@ contract VaultTest is Test {
     TDT = IERC20(address(tdt));
     val = new Vault(address(TDT));
     MockOracle o = new MockOracle();
-    val.setOracle(address(o));
+    val.file("Oracle", address(o));
     o.setLastAnswer(1 ether);
 
     tdt.rely(address(val));
@@ -152,23 +152,42 @@ contract VaultTest is Test {
     o4.setLastAnswer(2.0e18);
     o5.setLastAnswer(5.0e18);
 
-    val.setAsset(address(TCAv1), 10 * ONE / 100, 40 * ONE / 100, address(o1));
-    val.setAsset(address(TCAv2), 20 * ONE / 100, 50 * ONE / 100, address(o2));
-    val.setAsset(address(tsUSD), 30 * ONE / 100, 60 * ONE / 100, address(o3));
-    val.setAsset(address(T1), 10 * ONE / 100, 20 * ONE / 100, address(o4));
-    val.setAsset(address(T2), 20 * ONE / 100, 30 * ONE / 100, address(o5));
+    val.file("TCAv1", "min", 10 * ONE / 100);
+    val.file("TCAv1", "max", 40 * ONE / 100);
+    val.file("TCAv1", "oracle", address(o1));
+    val.file("TCAv1", "gem", address(TCAv1));
+
+    val.file("TCAv2", "min", 20 * ONE / 100);
+    val.file("TCAv2", "max", 50 * ONE / 100);
+    val.file("TCAv2", "oracle", address(o2));
+    val.file("TCAv2", "gem", address(TCAv2));
+
+    val.file("tsUSD", "min", 30 * ONE / 100);
+    val.file("tsUSD", "max", 60 * ONE / 100);
+    val.file("tsUSD", "oracle", address(o3));
+    val.file("tsUSD", "gem", address(tsUSD));
+
+    val.file("T1", "min", 10 * ONE / 100);
+    val.file("T1", "max", 20 * ONE / 100);
+    val.file("T1", "oracle", address(o4));
+    val.file("T1", "gem", address(T1));
+
+    val.file("T2", "min", 20 * ONE / 100);
+    val.file("T2", "max", 30 * ONE / 100);
+    val.file("T2", "oracle", address(o5));
+    val.file("T2", "gem", address(T2));
   }
 
   function testInitAssets() public {
-    uint len = val.tokensLen();
-    address[] memory tokens = new address[](len);
+    uint len = val.assLen();
+    bytes32[] memory names = new bytes32[](len);
     uint[] memory amts = new uint[](len);
     for (uint i = 0; i < len; i++) {
-      address t = val.tokens(i);
-      tokens[i] = t;
+      bytes32 name = val.assList(i);
       amts[i] = 1000 ether;
+      names[i] = name;
     }
-    val.initAssets(tokens, amts);
+    val.initAssets(names, amts);
 
     assertEq(TCAv1.balanceOf(address(val)), 1000 ether);
     assertEq(TCAv2.balanceOf(address(val)), 1000 ether);
@@ -180,9 +199,9 @@ contract VaultTest is Test {
 
   function testBuyFee() public {
     testInitAssets();
-    uint p = val.assetPersent(address(T1));
+    uint p = val.assetPersent("T1");
     console2.log("persent", p);
-    uint fee = val.buyFee(address(T1), 1000 ether);
+    uint fee = val.buyFee("T1", 1000 ether);
     console2.log("fee", fee);
     assertTrue(fee > 0, "fee should be greater than zero");
   }
@@ -190,9 +209,9 @@ contract VaultTest is Test {
   function testBuyExactIn() public {
     testInitAssets();
     assertEq(TDT.balanceOf(address(u1)), 0, "should zero TDT");
-    uint fee = val.buyFee(address(T1), 1000 ether);
+    uint fee = val.buyFee("T1", 1000 ether);
     console2.log("fee", fee);
-    u1.buyTDTExactIn(IVault(address(val)), address(T1), 1000 ether, 0);
+    u1.buyTDTExactIn(IVault(address(val)), "T1", 1000 ether, 0);
     console2.log("TDT", TDT.balanceOf(address(u1)));
     assertTrue(TDT.balanceOf(address(u1)) < 2000 ether, "should less then 2000 TDT");
     assertEq(TDT.balanceOf(address(u1)), (1000 ether - fee) * 2, "should get same TDT");
@@ -203,19 +222,19 @@ contract VaultTest is Test {
     assertEq(TDT.balanceOf(address(u1)), 0, "should zero TDT");
     uint balance = T1.balanceOf(address(u1));
     assertEq(balance, 10000 ether, "should get 10000 T1");
-    uint fee = val.buyFee(address(T1), 500 ether);
-    u1.buyTDTExactOut(IVault(address(val)), address(T1), 1000 ether, 1000 ether);
+    uint fee = val.buyFee("T1", 500 ether);
+    u1.buyTDTExactOut(IVault(address(val)), "T1", 1000 ether, 1000 ether);
     assertEq(TDT.balanceOf(address(u1)), 1000 ether, "should get 1000 TDT");
     assertEq(T1.balanceOf(address(u1)), balance - 500 ether - fee, "should get same T1");
   }
 
   function testSellFee() public {
     testInitAssets();
-    uint p = val.assetPersent(address(T1));
+    uint p = val.assetPersent("T1");
     console2.log("persent", p);
-    p = val.assetPersent(address(T1));
+    p = val.assetPersent("T1");
     console2.log("persent2", p);
-    uint fee = val.sellFee(address(T1), 900 ether);
+    uint fee = val.sellFee("T1", 900 ether);
     console2.log("fee", fee);
     assertTrue(fee > 0, "fee should be greater than zero");
   }
@@ -226,8 +245,8 @@ contract VaultTest is Test {
 
     uint tdt_balance = TDT.balanceOf(address(u1));
     uint t1_balance = T1.balanceOf(address(u1));
-    uint fee = val.sellFee(address(T1), 50 ether);
-    uint out = u1.sellTDTExactIn(IVault(address(val)), address(T1), 100 ether, 0);
+    uint fee = val.sellFee("T1", 50 ether);
+    uint out = u1.sellTDTExactIn(IVault(address(val)), "T1", 100 ether, 0);
     assertEq(tdt_balance - 100 ether, TDT.balanceOf(address(u1)), "should get same TDT");
     assertEq(T1.balanceOf(address(u1)), t1_balance - fee + out, "should get same T1");
   }
@@ -238,8 +257,8 @@ contract VaultTest is Test {
 
     uint tdt_balance = TDT.balanceOf(address(u1));
     uint t1_balance = T1.balanceOf(address(u1));
-    uint fee = val.sellFee(address(T1), 50 ether);
-    uint out = u1.sellTDTExactOut(IVault(address(val)), address(T1), 200 ether, 100 ether);
+    uint fee = val.sellFee("T1", 50 ether);
+    uint out = u1.sellTDTExactOut(IVault(address(val)), "T1", 200 ether, 100 ether);
     assertEq(tdt_balance - out, TDT.balanceOf(address(u1)), "should get same TDT");
     assertEq(T1.balanceOf(address(u1)), t1_balance - fee + 100 ether, "should get same T1");
   }

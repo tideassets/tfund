@@ -8,13 +8,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
 
-interface InvLike {
-  function deposit(address[] memory asss_, uint[] memory amts_, address reward) external;
-  function withdraw(address[] memory asss_, uint[] memory amts_) external;
-  function claim() external;
-  function depositedAmount(address usr, address ass) external view returns (uint);
-  function rewards(address usr, address ass) external view returns (uint);
-  function rewardTokens(address usr) external view returns (address[] memory);
+interface FundLike {
+  function deposit(address ass, uint amt) external;
+  function withdraw(address ass, uint amt) external;
+  function balanceOf(address usr, address ass) external view returns (uint);
+  function feeOf(address usr, address ass) external view returns (uint);
 }
 
 interface OracleLike {
@@ -35,19 +33,16 @@ contract Vault is Auth {
   struct Ass {
     uint min; // min persent
     uint max; // max persent
-    address oracle; // price oracle
-  }
-
-  struct Inv {
-    uint max;
+    uint out; // out persent
     uint amt;
-    uint pos;
+    address gem; // asset address
+    address oracle; // price oracle
+    address fund;
   }
 
-  mapping(address => Ass) public asss;
-  mapping(address => mapping(address => Inv)) public invs; // adv_addr => ass_addk => Inv
-  address[] public invetors;
-  address[] public tokens;
+  mapping(bytes32 name => Ass) public asss;
+  bytes32[] public assList;
+  mapping(bytes32 name => uint index) assIndexs;
 
   TTokenLike public core; // TDT, TCAv1, TCAv2
   OracleLike public coreOracle; // oracle for core
@@ -69,86 +64,101 @@ contract Vault is Auth {
     return lasstAnswer;
   }
 
-  function tokensLen() public view returns (uint) {
-    return tokens.length;
-  }
-
-  function invsLen() public view returns (uint) {
-    return invetors.length;
+  function assLen() public view returns (uint) {
+    return assList.length;
   }
 
   function setFee(uint fee_) external auth {
     excfee = fee_;
   }
 
-  function setAsset(address ass, uint min, uint max, address oracle) external auth {
-    require(max > 0, "Vat/max persent error");
-    require(asss[ass].max == 0, "Vat/already added");
-
-    Ass storage a = asss[ass];
-    a.min = min;
-    a.max = max;
-    a.oracle = oracle;
-    tokens.push(ass);
-  }
-
-  function removeAsset(address ass) external auth {
-    require(asss[ass].max > 0, "Val/asset not added");
-    delete asss[ass];
-  }
-
-  function setOracle(address ass, address oracle) external auth {
-    require(asss[ass].max > 0, "Val/asset not added");
-    require(address(0) != oracle, "Val/oracle address is zero");
-    asss[ass].oracle = oracle;
-  }
-
-  function setOracle(address coreOracle_) external auth {
-    require(address(0) != coreOracle_, "Val/oracle address is zero");
-    coreOracle = OracleLike(coreOracle_);
-  }
-
-  function setInv(address ass, address inv, uint max) external auth {
-    require(asss[ass].max > 0, "Val/asset not added");
-    invs[inv][ass].max = max;
-
-    bool e = false;
-    for (uint i = 0; i < invetors.length; i++) {
-      if (inv == invetors[i]) {
-        e = true;
-        break;
+  function _file(bytes32 who, bool rm) internal {
+    if (!rm) {
+      if (assIndexs[who] > 0) {
+        return;
       }
-    }
-    if (!e) {
-      invetors.push(inv);
+      assList.push(who);
+      assIndexs[who] = assList.length;
+    } else {
+      require(assIndexs[who] > 0, "Vat/asset not added");
+      bytes32 last = assList[assList.length - 1];
+      if (who != last) {
+        uint i = assIndexs[who] - 1;
+        assList[i] = last;
+        assIndexs[last] = i + 1;
+      }
+      assList.pop();
+      delete assIndexs[who];
+      delete asss[who];
     }
   }
 
-  function invetMax(address ass, address inv) public view returns (uint) {
-    uint balance = assetAmount(ass);
-    uint maxPersent = invs[inv][ass].max;
-    uint max = (balance * maxPersent) / ONE;
-
-    InvLike invetor = InvLike(inv);
-    uint damt = invetor.depositedAmount(address(this), ass);
-    return max - damt;
+  function file(bytes32 who, bytes32 what, uint data) external auth whenNotPaused {
+    if (what == "max") {
+      asss[who].max = data;
+    } else if (what == "min") {
+      asss[who].min = data;
+    } else if (what == "out") {
+      asss[who].out = data;
+    } else if (what == "amt") {
+      asss[who].amt = data;
+    } else {
+      revert("Vat/file-unrecognized-param");
+    }
   }
 
-  function assetAmount(address ass) public view returns (uint) {
-    IERC20 token = IERC20(ass);
+  function file(bytes32 who, bytes32 what, address data) external auth whenNotPaused {
+    if (what == "gem") {
+      asss[who].gem = data;
+    } else if (what == "oracle") {
+      asss[who].oracle = data;
+    } else if (what == "fund") {
+      asss[who].fund = data;
+    } else {
+      revert("Vat/file-unrecognized-param");
+    }
+    _file(who, what == "gem" && data == address(0));
+  }
+
+  function file(bytes32 what, address data) external auth whenNotPaused {
+    require(data != address(0), "Vat/file-address-is-zero");
+    if (what == "Oracle") {
+      coreOracle = OracleLike(data);
+    } else {
+      revert("Vat/file-unrecognized-param");
+    }
+  }
+
+  function file(bytes32 what, uint data) external auth whenNotPaused {
+    if (what == "fee") {
+      excfee = data;
+    } else {
+      revert("Vat/file-unrecognized-param");
+    }
+  }
+
+  function assetOut(bytes32 name) public view returns (uint) {
+    Ass memory ass = asss[name];
+    if (ass.fund == address(0) || ass.out == 0) {
+      return 0;
+    }
+    FundLike fund = FundLike(ass.fund);
+    uint amt = fund.balanceOf(address(this), ass.gem);
+    uint fee = fund.feeOf(address(this), ass.gem);
+    return amt + fee;
+  }
+
+  function assetAmount(bytes32 name) public view returns (uint) {
+    Ass memory ass = asss[name];
+    IERC20 token = IERC20(ass.gem);
     uint balance = token.balanceOf(address(this));
-    for (uint i = 0; i < invetors.length; i++) {
-      InvLike invetor = InvLike(invetors[i]);
-      uint damt = invetor.depositedAmount(address(this), ass);
-      uint rewards = invetor.rewards(address(this), ass);
-      balance = balance + rewards + damt;
-    }
+    balance = balance + assetOut(name);
     return balance;
   }
 
-  function assetValue(address ass) public view returns (uint) {
-    uint balance = assetAmount(ass);
-    OracleLike o = OracleLike(asss[ass].oracle);
+  function assetValue(bytes32 name) public view returns (uint) {
+    uint balance = assetAmount(name);
+    OracleLike o = OracleLike(asss[name].oracle);
     (, int lastAnswer,,,) = o.latestRoundData();
     uint value = uint(lastAnswer) * balance / ONE;
     return value;
@@ -156,16 +166,17 @@ contract Vault is Auth {
 
   function totalValue() public view returns (uint) {
     uint total = 0;
-    for (uint i = 1; i < tokens.length; i++) {
-      total += assetValue(tokens[i]);
+    for (uint i = 1; i < assList.length; i++) {
+      total += assetValue(assList[i]);
     }
     return total;
   }
 
-  function _assetPersent(address ass, int amt) internal view returns (uint) {
+  function _calcuPersent(bytes32 name, int amt) internal view returns (uint) {
+    Ass memory ass = asss[name];
     int total = int(totalValue());
-    int assVal = int(assetValue(ass));
-    OracleLike o = OracleLike(asss[ass].oracle);
+    int assVal = int(assetValue(name));
+    OracleLike o = OracleLike(ass.oracle);
     (, int lastAnswer,,,) = o.latestRoundData();
     int dval = (lastAnswer * amt) / int(ONE);
     total += dval;
@@ -177,138 +188,150 @@ contract Vault is Auth {
     return (ONE * uint(assVal)) / uint(total);
   }
 
-  function assetPersent(address ass) public view returns (uint) {
-    return _assetPersent(ass, 0);
+  function assetPersent(bytes32 name) public view returns (uint) {
+    return _calcuPersent(name, 0);
   }
 
-  function deposit(address[] calldata asss_, uint[] calldata amts_, address inv_) external auth {
-    for (uint i = 0; i < asss_.length; i++) {
-      uint amt = amts_[i];
-      uint max = invetMax(asss_[i], inv_);
-      require(amt <= max, "Val/amt error");
-      IERC20 ass = IERC20(asss_[i]);
-      ass.forceApprove(inv_, amt);
-    }
-    InvLike(inv_).deposit(asss_, amts_, address(this));
+  function calcuOut(bytes32 name) public view returns (uint) {
+    Ass memory ass = asss[name];
+    uint amt = assetAmount(name);
+    uint out = assetOut(name);
+    return amt * ass.out / ONE - out;
   }
 
-  function withdraw(address[] memory asss_, uint[] memory amts_, address inv_) external auth {
-    InvLike(inv_).withdraw(asss_, amts_);
+  function deposit(bytes32 name, uint amt) external auth {
+    Ass memory ass = asss[name];
+    uint max = calcuOut(name);
+    require(amt <= max, "Val/amt error");
+    IERC20 token = IERC20(ass.gem);
+    token.forceApprove(ass.fund, amt);
+    FundLike(ass.fund).deposit(ass.gem, amt);
   }
 
-  function buyFee(address ass, uint amt) public view returns (uint) {
-    uint p = _assetPersent(ass, int(amt));
-    if (p <= asss[ass].max) {
+  function withdraw(bytes32 name, uint amt) external auth {
+    Ass memory ass = asss[name];
+    FundLike(ass.fund).withdraw(ass.gem, amt);
+  }
+
+  function buyFee(bytes32 name, uint amt) public view returns (uint) {
+    uint p = _calcuPersent(name, int(amt));
+    Ass memory ass = asss[name];
+    if (p <= ass.max) {
       return 0;
     }
-    uint exc = p - asss[ass].max;
+    uint exc = p - ass.max;
     return (exc * amt) / ONE * excfee / ONE;
   }
 
-  function sellFee(address ass, uint amt) public view returns (uint) {
-    uint p = _assetPersent(ass, -int(amt));
-    if (p >= asss[ass].min) {
+  function sellFee(bytes32 name, uint amt) public view returns (uint) {
+    uint p = _calcuPersent(name, -int(amt));
+    Ass memory ass = asss[name];
+    if (p >= ass.min) {
       return 0;
     }
-    uint exc = asss[ass].min - p;
+    uint exc = ass.min - p;
     return (exc * amt) / ONE * excfee / ONE;
   }
 
   // no buy fee
-  function initAssets(address[] memory asss_, uint[] memory amts_) external auth {
+  function initAssets(bytes32[] memory names, uint[] memory amts_) external auth {
     if (inited) {
       // exec once
       return;
     }
     inited = true;
-    for (uint i = 0; i < asss_.length; i++) {
-      _buy(asss_[i], msg.sender, amts_[i], false);
+    for (uint i = 0; i < names.length; i++) {
+      _buy(names[i], msg.sender, amts_[i], false);
     }
   }
 
-  function buyExactOut(address ass, address to, uint maxIn, uint out)
+  function buyExactOut(bytes32 name, address to, uint maxIn, uint out)
     external
     whenNotPaused
     returns (uint)
   {
-    require(asss[ass].max > 0, "Vat/asset not in whitelist");
+    Ass memory ass = asss[name];
+    require(ass.max > 0, "Vat/asset not in whitelist");
 
-    (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
+    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
     uint need = out * uint(corePrice()) / uint(assPrice);
-    uint fee = buyFee(ass, need);
+    uint fee = buyFee(name, need);
     need += fee;
     require(need <= maxIn, "Vat/amount in not enough");
-    IERC20 token = IERC20(ass);
+    IERC20 token = IERC20(ass.gem);
     token.safeTransferFrom(msg.sender, address(this), need);
     core.mint(to, out);
     return need;
   }
 
-  function buyExactIn(address ass, address to, uint amt, uint minOut)
+  function buyExactIn(bytes32 name, address to, uint amt, uint minOut)
     external
     whenNotPaused
     returns (uint)
   {
-    uint max = _buy(ass, to, amt, true);
+    uint max = _buy(name, to, amt, true);
     require(max >= minOut, "Vat/amount out is too large");
     return max;
   }
 
   // buy tdt, sell amt of ass buy tdt
-  function _buy(address ass, address to, uint amt, bool useFee) internal returns (uint) {
-    require(asss[ass].max > 0, "Vat/asset not in whitelist");
+  function _buy(bytes32 name, address to, uint amt, bool useFee) internal returns (uint) {
+    Ass memory ass = asss[name];
+    require(ass.max > 0, "Vat/asset not in whitelist");
 
     uint fee = 0;
     if (useFee) {
-      fee = buyFee(ass, amt);
+      fee = buyFee(name, amt);
     }
 
-    (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
+    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
     uint max = uint(assPrice) * (amt - fee) / uint(corePrice());
 
-    IERC20 token = IERC20(ass);
+    IERC20 token = IERC20(ass.gem);
     token.safeTransferFrom(msg.sender, address(this), amt);
 
     core.mint(to, max);
     return max;
   }
 
-  function sellExactOut(address ass, address to, uint maxIn, uint out)
+  function sellExactOut(bytes32 name, address to, uint maxIn, uint out)
     external
     whenNotPaused
     returns (uint)
   {
-    require(asss[ass].max > 0, "Vat/asset not in whitelist");
-    (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
-    uint fee = sellFee(ass, out);
+    Ass memory ass = asss[name];
+    require(ass.max > 0, "Vat/asset not in whitelist");
+    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
+    uint fee = sellFee(name, out);
     uint need = uint(assPrice * int(out + fee) / corePrice());
     require(need <= maxIn, "Val/amount in is not enough");
 
     core.burn(msg.sender, need);
 
-    IERC20 token = IERC20(ass);
+    IERC20 token = IERC20(ass.gem);
     token.safeTransfer(to, out);
     return need;
   }
 
   // sell core for ass, amt is tdt amount for sell
-  function sellExactIn(address ass, address to, uint amt, uint minOut)
+  function sellExactIn(bytes32 name, address to, uint amt, uint minOut)
     external
     whenNotPaused
     returns (uint)
   {
-    require(asss[ass].max > 0, "Vat/asset not in whitelist");
+    Ass memory ass = asss[name];
+    require(ass.max > 0, "Vat/asset not in whitelist");
 
     core.burn(msg.sender, amt);
 
-    (, int assPrice,,,) = OracleLike(asss[ass].oracle).latestRoundData();
+    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
     uint max = uint(corePrice() * int(amt) / assPrice);
 
-    uint fee = sellFee(ass, max);
+    uint fee = sellFee(name, max);
     max = max - fee;
     require(max >= minOut, "Vat/amount out is too large");
 
-    IERC20 token = IERC20(ass);
+    IERC20 token = IERC20(ass.gem);
     token.safeTransfer(to, max);
     return max;
   }
