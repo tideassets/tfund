@@ -21,10 +21,18 @@ contract Stakex is ERC20, Auth {
   // rs["TDT-A"] = naddress(ew RewarderCycle())
   mapping(bytes32 => address) public rs;
   bytes32[] public ra;
-  mapping(bytes32 => uint) ri;
+  mapping(bytes32 => uint) public ri;
 
   constructor(string memory name_, string memory symbol_, address stkToken_) ERC20(name_, symbol_) {
     stkToken = IERC20(stkToken_);
+  }
+
+  function setStkToken(address stkToken_) external auth {
+    stkToken = IERC20(stkToken_);
+  }
+
+  function rewarders() external view returns (bytes32[] memory) {
+    return ra;
   }
 
   function addRewarder(bytes32 name, address rewarder) external auth {
@@ -37,7 +45,8 @@ contract Stakex is ERC20, Auth {
     bytes32 last = ra[ra.length - 1];
     if (name != last) {
       uint i = ri[name] - 1;
-      ri[last] = i;
+      ra[i] = last;
+      ri[last] = i + 1;
     }
     ra.pop();
     delete ri[name];

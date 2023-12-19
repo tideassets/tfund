@@ -38,10 +38,7 @@ contract VeToken is Auth, ERC721Enumerable {
 
   mapping(Long => uint) public mults;
   mapping(Long => uint) public longs;
-
   mapping(uint => Pow) public pows; // key is tokenId
-  // mapping(address => uint[]) public ids; // key is usr address, value is tokenIds
-  // mapping(address => mapping(uint => uint)) public indexs; // key is usr address, value is tokenId => index
 
   event Deposit(address indexed usr, uint amt, uint start, Long long);
   event Withdraw(address indexed usr, uint amt, uint start, Long long);
