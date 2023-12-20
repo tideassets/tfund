@@ -40,13 +40,17 @@ contract Stakex is Auth, Initializable {
     return ra;
   }
 
-  function addRewarder(bytes32 name, address rewarder) external auth {
-    rs[name] = rewarder;
-    ra.push(name);
-    ri[name] = ra.length;
+  function file(bytes32 who, bytes32 what, address data) external auth {
+    if (what == "add") {
+      rs[who] = data;
+      ra.push(who);
+      ri[who] = ra.length;
+    } else if (what == "rm") {
+      _rmRewarder(who);
+    }
   }
 
-  function delRewarder(bytes32 name) external auth {
+  function _rmRewarder(bytes32 name) internal {
     bytes32 last = ra[ra.length - 1];
     if (name != last) {
       uint i = ri[name] - 1;

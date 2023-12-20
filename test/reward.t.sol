@@ -61,7 +61,7 @@ contract RewarderAccumTest is Test {
     rewardValut.doApprove(address(reward), address(R), type(uint).max);
     asset.approve(address(staker), type(uint).max);
 
-    staker.addRewarder("TDT", address(R));
+    staker.file("TDT", "add", address(R));
   }
 
   function onERC721Received(address, address, uint, bytes memory) public pure returns (bytes4) {
@@ -135,7 +135,7 @@ contract RewarderCycleTest is Test {
     asset.mint(address(this), 1e9 ether);
     asset.approve(address(staker), type(uint).max);
 
-    staker.addRewarder("TDT", address(R));
+    staker.file("TDT", "add", address(R));
   }
 
   function _testStake() public {

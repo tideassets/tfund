@@ -44,21 +44,6 @@ contract IOU20 is ERC20, Ownable {
     }
     super._update(from, to, value);
   }
-
-  // // override ERC20.transferFrom to add owner check
-  // function transferFrom(address from, address to, uint value)
-  //   public
-  //   override
-  //   onlyOwner
-  //   returns (bool)
-  // {
-  //   return super.transferFrom(from, to, value);
-  // }
-
-  // // override ERC20.transfer to add owner check
-  // function transfer(address to, uint value) public override onlyOwner returns (bool) {
-  //   return super.transfer(to, value);
-  // }
 }
 
 contract IOU721 is ERC721Enumerable, Ownable {

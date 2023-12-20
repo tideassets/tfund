@@ -30,7 +30,7 @@ contract StakexTest is Test {
 
   function testAddRewarder() public {
     MRewarder r = new MRewarder();
-    st.addRewarder("TDT-A", address(r));
+    st.file("TDT-A", "add", address(r));
     assertTrue(st.rs("TDT-A") == address(r));
     assertTrue(st.ra(0) == "TDT-A");
     assertTrue(st.ri("TDT-A") == 1);
@@ -38,27 +38,27 @@ contract StakexTest is Test {
 
   function testRmRewarder() public {
     MRewarder r = new MRewarder();
-    st.addRewarder("TDT-A", address(r));
-    st.delRewarder("TDT-A");
+    st.file("TDT-A", "add", address(r));
+    st.file("TDT-A", "rm", address(0));
     assertTrue(st.rewarders().length == 0);
     assertTrue(st.ri("TDT-A") == 0);
     assertTrue(st.rs("TDT-A") == address(0));
 
-    st.addRewarder("TDT-A", address(r));
-    st.addRewarder("TDT-B", address(new MRewarder()));
-    st.addRewarder("TDT-C", address(new MRewarder()));
+    st.file("TDT-A", "add", address(r));
+    st.file("TDT-B", "add", address(new MRewarder()));
+    st.file("TDT-C", "add", address(new MRewarder()));
     assertEq(st.rewarders().length, 3);
-    st.delRewarder("TDT-B");
+    st.file("TDT-B", "rm", address(0));
     assertEq(st.rewarders().length, 2);
     assertTrue(st.ra(0) == "TDT-A");
     assertTrue(st.ra(1) == "TDT-C");
     assertTrue(st.ri("TDT-A") == 1);
     assertTrue(st.ri("TDT-C") == 2);
-    st.delRewarder("TDT-A");
+    st.file("TDT-A", "rm", address(0));
     assertEq(st.rewarders().length, 1);
     assertTrue(st.ra(0) == "TDT-C");
     assertTrue(st.ri("TDT-C") == 1);
-    st.delRewarder("TDT-C");
+    st.file("TDT-C", "rm", address(0));
     assertEq(st.rewarders().length, 0);
   }
 }
