@@ -8,28 +8,35 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
+import {IOU20} from "./iou.sol";
 
 interface RewarderLike {
   function stake(address, uint) external;
   function unstake(address, uint) external;
 }
 
-contract Stakex is ERC20, Auth, Initializable {
+contract Stakex is Auth, Initializable {
   using SafeERC20 for IERC20;
 
   IERC20 public stkToken;
+  IOU20 public iou;
 
   // rs["TDT-A"] = naddress(ew RewarderCycle())
   mapping(bytes32 => address) public rs;
   bytes32[] public ra;
   mapping(bytes32 => uint) public ri;
 
-  constructor(string memory name_, string memory symbol_, address stkToken_) ERC20(name_, symbol_) {
+  function initialize(address stkToken_, address iou_) public initializer {
     stkToken = IERC20(stkToken_);
+    iou = IOU20(iou_);
   }
 
   function setStkToken(address stkToken_) external auth {
     stkToken = IERC20(stkToken_);
+  }
+
+  function balanceOf(address u) public view returns (uint) {
+    return iou.balanceOf(u);
   }
 
   function rewarders() external view returns (bytes32[] memory) {
@@ -56,11 +63,10 @@ contract Stakex is ERC20, Auth, Initializable {
 
   function stake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
-
-    _stake(to, amt);
-
     stkToken.safeTransferFrom(msg.sender, address(this), amt);
-    _mint(to, amt);
+
+    // _stake(to, amt);
+    iou.mint(to, amt);
   }
 
   function _stake(address to, uint amt) internal {
@@ -74,8 +80,8 @@ contract Stakex is ERC20, Auth, Initializable {
   function unstake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
-    _unstake(msg.sender, amt);
-    _burn(msg.sender, amt);
+    // _unstake(msg.sender, amt);
+    iou.burn(msg.sender, amt);
     stkToken.safeTransfer(to, amt);
   }
 
@@ -87,21 +93,32 @@ contract Stakex is ERC20, Auth, Initializable {
     }
   }
 
-  function transfer(address to, uint amt) public override returns (bool) {
-    _unstake(msg.sender, amt);
-    _stake(to, amt);
-
-    bool ok = super.transfer(to, amt);
-    require(ok, "VeToken/transfer-failed");
-    return true;
+  function update(address from, address to, uint val) external {
+    if (from == address(0)) {
+      _stake(to, val);
+    } else if (to == address(0)) {
+      _unstake(from, val);
+    } else {
+      _unstake(from, val);
+      _stake(to, val);
+    }
   }
 
-  function transferFrom(address from, address to, uint amt) public override returns (bool) {
-    _unstake(from, amt);
-    _stake(to, amt);
+  // function transfer(address to, uint amt) public override returns (bool) {
+  //   _unstake(msg.sender, amt);
+  //   _stake(to, amt);
 
-    bool ok = super.transferFrom(from, to, amt);
-    require(ok, "VeToken/transfer-failed");
-    return true;
-  }
+  //   bool ok = super.transfer(to, amt);
+  //   require(ok, "VeToken/transfer-failed");
+  //   return true;
+  // }
+
+  // function transferFrom(address from, address to, uint amt) public override returns (bool) {
+  //   _unstake(from, amt);
+  //   _stake(to, amt);
+
+  //   bool ok = super.transferFrom(from, to, amt);
+  //   require(ok, "VeToken/transfer-failed");
+  //   return true;
+  // }
 }

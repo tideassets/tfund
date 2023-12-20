@@ -6,28 +6,7 @@ import {RewarderCycle, RewarderAccum} from "../src/reward.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Auth} from "../src/auth.sol";
 import {RewarderLike, Stakex} from "../src/stake.sol";
-
-contract MStaker is ERC20 {
-  constructor() ERC20("Staker", "STK") {}
-
-  address rtoken;
-  address rewarder;
-
-  function stake(address usr, uint amt) external {
-    RewarderLike(rewarder).stake(usr, amt);
-    _mint(usr, amt);
-  }
-
-  function unstake(address usr, uint amt) external {
-    RewarderLike(rewarder).unstake(usr, amt);
-    _burn(usr, amt);
-  }
-
-  function addRtoken(address rtoken_, address rewarder_) external {
-    rtoken = rtoken_;
-    rewarder = rewarder_;
-  }
-}
+import {IOU20} from "src/iou.sol";
 
 contract MEsToken is ERC20 {
   constructor() ERC20("EsToken", "EST") {}
@@ -53,6 +32,7 @@ contract MToken is ERC20, Auth {
 
 contract RewarderAccumTest is Test {
   RewarderAccum public R;
+  IOU20 iou;
   Stakex public staker;
   MEsToken public esToken;
   MRewardVault public rewardValut;
@@ -67,7 +47,11 @@ contract RewarderAccumTest is Test {
     reward = new MToken();
     asset = new MToken();
 
-    staker = new Stakex("Staker", "STK", address(asset));
+    staker = new Stakex();
+    iou = new IOU20("stk IOU", "IOU");
+    staker.initialize(address(asset), address(iou));
+    iou.file("updater", address(staker));
+    iou.file("owner", address(staker));
     R = new RewarderAccum(address(reward), address(staker), address(rewardValut));
     // R.setRPS(RAY * 315360 / 1000000 / (1 days * 365)); // yearly rate
     R.setRPS(1e9);
@@ -127,6 +111,7 @@ contract RewarderAccumTest is Test {
 
 contract RewarderCycleTest is Test {
   RewarderCycle public R;
+  IOU20 iou;
   Stakex public staker;
   MEsToken public esToken;
   MRewardVault public rewardValut;
@@ -138,7 +123,11 @@ contract RewarderCycleTest is Test {
     rewardValut = new MRewardVault();
     reward = new MToken();
     asset = new MToken();
-    staker = new Stakex("Staker", "STK", address(asset));
+    staker = new Stakex();
+    iou = new IOU20("stk IOU", "IOU");
+    staker.initialize(address(asset), address(iou));
+    iou.file("updater", address(staker));
+    iou.file("owner", address(staker));
     R = new RewarderCycle(address(reward), address(staker), address(rewardValut));
 
     R.newCycle(1e9);
@@ -205,7 +194,7 @@ contract RewarderCycleTest is Test {
   function testTransfer() external {
     staker.stake(address(this), 2 ether);
     R.newCycle(1e9);
-    staker.transfer(address(0x123), 1 ether);
+    iou.transfer(address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
     assertEq(staker.balanceOf(address(0x123)), 1 ether);
 
@@ -214,7 +203,7 @@ contract RewarderCycleTest is Test {
     assertEq(R.claimable(address(this)), 2e9, "this should be 1e9");
     assertEq(R.claimable(address(0x123)), 1e9, "123 should be 1e9");
 
-    staker.transfer(address(0x123), 1 ether);
+    iou.transfer(address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 0);
     assertEq(staker.balanceOf(address(0x123)), 2 ether);
 
@@ -227,8 +216,8 @@ contract RewarderCycleTest is Test {
   function testTransferFrom() external {
     staker.stake(address(this), 2 ether);
     R.newCycle(1e9);
-    staker.approve(address(this), 1 ether);
-    staker.transferFrom(address(this), address(0x123), 1 ether);
+    iou.approve(address(this), 1 ether);
+    iou.transferFrom(address(this), address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
     assertEq(staker.balanceOf(address(0x123)), 1 ether);
 
@@ -237,7 +226,7 @@ contract RewarderCycleTest is Test {
     assertEq(R.claimable(address(this)), 2e9, "this should be 1e9");
     assertEq(R.claimable(address(0x123)), 1e9, "123 should be 1e9");
 
-    staker.transfer(address(0x123), 1 ether);
+    iou.transfer(address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 0);
     assertEq(staker.balanceOf(address(0x123)), 2 ether);
 

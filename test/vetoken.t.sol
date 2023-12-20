@@ -31,6 +31,7 @@ contract VeTokenTest is Test {
   VeToken public vt;
   IERC20 TDT;
   User u;
+  uint constant ONE = 10 ** 18;
 
   function onERC721Received(address, address, uint, bytes memory) public pure returns (bytes4) {
     return 0x150b7a02;
@@ -50,31 +51,31 @@ contract VeTokenTest is Test {
     u.doDeposit(vt, 100 ether, VeToken.Long.ONEMON);
     uint p = vt.powerOf(1);
     assertEq(
-      p, 100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6, "powerOf should be 100 * 1.025 ** 1"
+      p, 100 ether * vt.mults(VeToken.Long.ONEMON) / ONE, "powerOf should be 100 * 1.025 ** 1"
     );
 
     u.doDeposit(vt, 100 ether, VeToken.Long.SIXMON);
     p = vt.powerOf(2);
     assertEq(
-      p, 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6, "powerOf should be 100 * 1.025 ** 6"
+      p, 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE, "powerOf should be 100 * 1.025 ** 6"
     );
 
     u.doDeposit(vt, 100 ether, VeToken.Long.ONEYEAR);
     p = vt.powerOf(3);
     assertEq(
-      p, 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6, "powerOf should be 100 * 1.025 ** 12"
+      p, 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE, "powerOf should be 100 * 1.025 ** 12"
     );
 
     u.doDeposit(vt, 100 ether, VeToken.Long.TWOYEAR);
     p = vt.powerOf(4);
     assertEq(
-      p, 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6, "powerOf should be 100 * 1.025 ** 24"
+      p, 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE, "powerOf should be 100 * 1.025 ** 24"
     );
 
     u.doDeposit(vt, 100 ether, VeToken.Long.FOURYEAR);
     p = vt.powerOf(5);
     assertEq(
-      p, 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6, "powerOf should be 100 * 1.025 ** 48"
+      p, 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE, "powerOf should be 100 * 1.025 ** 48"
     );
   }
 
@@ -88,11 +89,11 @@ contract VeTokenTest is Test {
     uint p = vt.powerOf(address(u));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
     );
   }
@@ -108,11 +109,11 @@ contract VeTokenTest is Test {
     console2.log("powerOf", p);
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
     );
 
@@ -121,10 +122,10 @@ contract VeTokenTest is Test {
     p = vt.powerOf(address(u));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
     );
 
@@ -133,9 +134,9 @@ contract VeTokenTest is Test {
     p = vt.powerOf(address(u));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 12 + 100"
     );
 
@@ -144,8 +145,8 @@ contract VeTokenTest is Test {
     p = vt.powerOf(address(u));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
     );
 
@@ -153,7 +154,7 @@ contract VeTokenTest is Test {
     u.doWithdraw(vt, 4);
     p = vt.powerOf(address(u));
     assertEq(
-      p, 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6, "powerOf should be 100 * 1.025 ** 48"
+      p, 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE, "powerOf should be 100 * 1.025 ** 48"
     );
 
     vm.warp(block.timestamp + 365 days * 4);
@@ -176,24 +177,24 @@ contract VeTokenTest is Test {
     uint p = vt.powerOf(address(u));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
     );
 
     u.transferNFT(address(vt), address(this), 1);
     p = vt.powerOf(address(this));
-    assertEq(p, 100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6, "powerOf should be 100 * 1.025 ");
+    assertEq(p, 100 ether * vt.mults(VeToken.Long.ONEMON) / ONE, "powerOf should be 100 * 1.025 ");
 
     u.transferNFT(address(vt), address(this), 2);
     p = vt.powerOf(address(this));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12"
     );
 
@@ -201,9 +202,9 @@ contract VeTokenTest is Test {
     p = vt.powerOf(address(this));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12"
     );
 
@@ -211,10 +212,10 @@ contract VeTokenTest is Test {
     p = vt.powerOf(address(this));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24"
     );
 
@@ -222,11 +223,11 @@ contract VeTokenTest is Test {
     p = vt.powerOf(address(this));
     assertEq(
       p,
-      100 ether * vt.mults(VeToken.Long.ONEMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.SIXMON) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / 1e6
-        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / 1e6,
+      100 ether * vt.mults(VeToken.Long.ONEMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.SIXMON) / ONE
+        + 100 ether * vt.mults(VeToken.Long.ONEYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.TWOYEAR) / ONE
+        + 100 ether * vt.mults(VeToken.Long.FOURYEAR) / ONE,
       "powerOf should be 100 * 1.025 ** 1 + 100 * 1.025 ** 6 + 100 * 1.025 ** 12 + 100 * 1.025 ** 24 + 100 * 1.025 ** 48"
     );
   }

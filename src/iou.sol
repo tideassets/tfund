@@ -11,8 +11,24 @@ import {
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+interface Updater {
+  function update(address, address, uint) external;
+}
+
 contract IOU20 is ERC20, Ownable {
+  Updater u;
+
   constructor(string memory name, string memory symbol) ERC20(name, symbol) Ownable(msg.sender) {}
+
+  function file(bytes32 what, address u_) external onlyOwner {
+    if (what == "updater") {
+      u = Updater(u_);
+    } else if (what == "owner") {
+      transferOwnership(u_);
+    } else {
+      revert("IOU20/file-unrecognized-param");
+    }
+  }
 
   function mint(address usr, uint wad) external onlyOwner {
     _mint(usr, wad);
@@ -22,24 +38,30 @@ contract IOU20 is ERC20, Ownable {
     _burn(usr, wad);
   }
 
-  // override ERC20.transferFrom to add owner check
-  function transferFrom(address from, address to, uint value)
-    public
-    override
-    onlyOwner
-    returns (bool)
-  {
-    return super.transferFrom(from, to, value);
+  function _update(address from, address to, uint value) internal virtual override {
+    if (address(u) != address(0)) {
+      u.update(from, to, value);
+    }
+    super._update(from, to, value);
   }
 
-  // override ERC20.transfer to add owner check
-  function transfer(address to, uint value) public override onlyOwner returns (bool) {
-    return super.transfer(to, value);
-  }
+  // // override ERC20.transferFrom to add owner check
+  // function transferFrom(address from, address to, uint value)
+  //   public
+  //   override
+  //   onlyOwner
+  //   returns (bool)
+  // {
+  //   return super.transferFrom(from, to, value);
+  // }
+
+  // // override ERC20.transfer to add owner check
+  // function transfer(address to, uint value) public override onlyOwner returns (bool) {
+  //   return super.transfer(to, value);
+  // }
 }
 
 contract IOU721 is ERC721Enumerable, Ownable {
-
   constructor(string memory name, string memory symbol) ERC721(name, symbol) Ownable(msg.sender) {}
 
   function mint(address usr, uint id) external onlyOwner {

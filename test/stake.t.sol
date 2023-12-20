@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test, console2} from "forge-std/Test.sol";
 import {Stakex, RewarderLike} from "../src/stake.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IOU20} from "../src/iou.sol";
 
 contract MEsToken is ERC20 {
   constructor() ERC20("EsToken", "EST") {}
@@ -23,7 +24,10 @@ contract StakexTest is Test {
 
   function setUp() public {
     MEsToken asset = new MEsToken();
-    st = new Stakex("Stakex", "STK", address(asset));
+    st = new Stakex();
+    st.initialize(address(asset), address(new IOU20("IOU", "IOU")));
+    st.iou().file("updater", address(st));
+    st.iou().file("owner", address(st));
   }
 
   function testAddRewarder() public {

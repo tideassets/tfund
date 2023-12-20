@@ -13,7 +13,7 @@ interface EsTokenLike {
 }
 
 interface StakerLike {
-  function totalSupply() external view returns (uint);
+  // function totalSupply() external view returns (uint);
   function balanceOf(address) external view returns (uint);
   function stkToken() external view returns (IERC20);
 }
@@ -69,9 +69,7 @@ abstract contract RewarderBase is Auth {
     emit Claim(msg.sender, recv, amount);
   }
 
-  function compound(address usr) external {
-
-  }
+  function compound(address usr) external {}
 
   function _claim(address usr) internal virtual returns (uint);
 

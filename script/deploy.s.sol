@@ -10,6 +10,7 @@ import {VeToken} from "src/vetoken.sol";
 import {EsToken} from "src/estoken.sol";
 import {Stakex} from "src/stake.sol";
 import {Dao} from "src/dao.sol";
+import {IOU20} from "src/iou.sol";
 
 // 1. 创建6种代币: TDT, sTCA, vTCA, tsStable, TTL, TTS, TTP.
 // 2. 创建3个 Vault: TDT Vault, sTCA Vault, vTCA Vault
@@ -126,10 +127,25 @@ contract DeployScript is Script {
   }
 
   function _setUpStakexs() internal {
-    tdtStk = new Stakex("TDT stkToken", "stkTDT", address(TDT));
-    ttlStk = new Stakex("TTL stkToken", "stkTTL", address(TTL));
-    ttsStk = new Stakex("TTS stkToken", "stkTTS",address(TTS));
-    ttpStk = new Stakex("TTP stkToken", "stkTTP", address(TTP));
+    tdtStk = new Stakex();
+    ttlStk = new Stakex();
+    ttsStk = new Stakex();
+    ttpStk = new Stakex();
+
+    tdtStk.initialize(address(TDT), address(new IOU20("tdtStk IOU", "IOU")));
+    ttlStk.initialize(address(TTL), address(new IOU20("ttlStk IOU", "IOU")));
+    ttsStk.initialize(address(TTS), address(new IOU20("ttsStk IOU", "IOU")));
+    ttpStk.initialize(address(TTP), address(new IOU20("ttpStk IOU", "IOU")));
+
+    tdtStk.iou().file("updater", address(tdtStk));
+    ttlStk.iou().file("updater", address(ttlStk));
+    ttsStk.iou().file("updater", address(ttsStk));
+    ttpStk.iou().file("updater", address(ttpStk));
+
+    tdtStk.iou().file("owner", address(tdtStk));
+    ttlStk.iou().file("owner", address(ttlStk));
+    ttsStk.iou().file("owner", address(ttsStk));
+    ttpStk.iou().file("owner", address(ttpStk));
   }
 
   function _setUpRewarders() internal {
