@@ -26,13 +26,10 @@ contract Stakex is Auth, Initializable {
   bytes32[] public ra;
   mapping(bytes32 => uint) public ri;
 
-  function initialize(address stkToken_, address iou_) public initializer {
+  function initialize(address stkToken_) public initializer {
     stkToken = IERC20(stkToken_);
-    iou = IOU20(iou_);
-  }
-
-  function setStkToken(address stkToken_) external auth {
-    stkToken = IERC20(stkToken_);
+    iou = new IOU20("stk IOU", "IOU");
+    iou.file("callback", address(this));
   }
 
   function balanceOf(address u) public view returns (uint) {
@@ -93,7 +90,7 @@ contract Stakex is Auth, Initializable {
     }
   }
 
-  function update(address from, address to, uint val) external {
+  function callback(address from, address to, uint val) external {
     if (from == address(0)) {
       _stake(to, val);
     } else if (to == address(0)) {
@@ -103,22 +100,4 @@ contract Stakex is Auth, Initializable {
       _stake(to, val);
     }
   }
-
-  // function transfer(address to, uint amt) public override returns (bool) {
-  //   _unstake(msg.sender, amt);
-  //   _stake(to, amt);
-
-  //   bool ok = super.transfer(to, amt);
-  //   require(ok, "VeToken/transfer-failed");
-  //   return true;
-  // }
-
-  // function transferFrom(address from, address to, uint amt) public override returns (bool) {
-  //   _unstake(from, amt);
-  //   _stake(to, amt);
-
-  //   bool ok = super.transferFrom(from, to, amt);
-  //   require(ok, "VeToken/transfer-failed");
-  //   return true;
-  // }
 }

@@ -11,18 +11,18 @@ import {
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-interface Updater {
-  function update(address, address, uint) external;
+interface CallbackLike {
+  function callback(address, address, uint) external;
 }
 
 contract IOU20 is ERC20, Ownable {
-  Updater u;
+  CallbackLike u;
 
   constructor(string memory name, string memory symbol) ERC20(name, symbol) Ownable(msg.sender) {}
 
   function file(bytes32 what, address u_) external onlyOwner {
-    if (what == "updater") {
-      u = Updater(u_);
+    if (what == "callback") {
+      u = CallbackLike(u_);
     } else if (what == "owner") {
       transferOwnership(u_);
     } else {
@@ -40,7 +40,7 @@ contract IOU20 is ERC20, Ownable {
 
   function _update(address from, address to, uint value) internal virtual override {
     if (address(u) != address(0)) {
-      u.update(from, to, value);
+      u.callback(from, to, value);
     }
     super._update(from, to, value);
   }

@@ -48,10 +48,8 @@ contract RewarderAccumTest is Test {
     asset = new MToken();
 
     staker = new Stakex();
-    iou = new IOU20("stk IOU", "IOU");
-    staker.initialize(address(asset), address(iou));
-    iou.file("updater", address(staker));
-    iou.file("owner", address(staker));
+    staker.initialize(address(asset));
+    iou = staker.iou();
     R = new RewarderAccum(address(reward), address(staker), address(rewardValut));
     // R.setRPS(RAY * 315360 / 1000000 / (1 days * 365)); // yearly rate
     R.setRPS(1e9);
@@ -124,10 +122,8 @@ contract RewarderCycleTest is Test {
     reward = new MToken();
     asset = new MToken();
     staker = new Stakex();
-    iou = new IOU20("stk IOU", "IOU");
-    staker.initialize(address(asset), address(iou));
-    iou.file("updater", address(staker));
-    iou.file("owner", address(staker));
+    staker.initialize(address(asset));
+    iou = staker.iou();
     R = new RewarderCycle(address(reward), address(staker), address(rewardValut));
 
     R.newCycle(1e9);

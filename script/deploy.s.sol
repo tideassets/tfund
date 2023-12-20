@@ -120,10 +120,14 @@ contract DeployScript is Script {
   }
 
   function _setUpEsTokens() internal {
-    esTDT = new EsToken(address(TDT), "TDT esToken", "esTDT");
-    esTTL = new EsToken(address(TTL), "TTL esToken", "esTTL");
-    esTTS = new EsToken(address(TTS), "TTS esToken", "esTTS");
-    esTTP = new EsToken(address(TTP), "TTP esToken", "esTTP");
+    esTDT = new EsToken();
+    esTDT.initialize(address(TDT), "TDT esToken", "esTDT");
+    esTTL = new EsToken();
+    esTTL.initialize(address(TTL), "TTL esToken", "esTTL");
+    esTTS = new EsToken();
+    esTTS.initialize(address(TTS), "TTS esToken", "esTTS");
+    esTTP = new EsToken();
+    esTTP.initialize(address(TTP), "TTP esToken", "esTTP");
   }
 
   function _setUpStakexs() internal {
@@ -132,20 +136,10 @@ contract DeployScript is Script {
     ttsStk = new Stakex();
     ttpStk = new Stakex();
 
-    tdtStk.initialize(address(TDT), address(new IOU20("tdtStk IOU", "IOU")));
-    ttlStk.initialize(address(TTL), address(new IOU20("ttlStk IOU", "IOU")));
-    ttsStk.initialize(address(TTS), address(new IOU20("ttsStk IOU", "IOU")));
-    ttpStk.initialize(address(TTP), address(new IOU20("ttpStk IOU", "IOU")));
-
-    tdtStk.iou().file("updater", address(tdtStk));
-    ttlStk.iou().file("updater", address(ttlStk));
-    ttsStk.iou().file("updater", address(ttsStk));
-    ttpStk.iou().file("updater", address(ttpStk));
-
-    tdtStk.iou().file("owner", address(tdtStk));
-    ttlStk.iou().file("owner", address(ttlStk));
-    ttsStk.iou().file("owner", address(ttsStk));
-    ttpStk.iou().file("owner", address(ttpStk));
+    tdtStk.initialize(address(TDT));
+    ttlStk.initialize(address(TTL));
+    ttsStk.initialize(address(TTS));
+    ttpStk.initialize(address(TTP));
   }
 
   function _setUpRewarders() internal {

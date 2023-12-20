@@ -25,9 +25,7 @@ contract StakexTest is Test {
   function setUp() public {
     MEsToken asset = new MEsToken();
     st = new Stakex();
-    st.initialize(address(asset), address(new IOU20("IOU", "IOU")));
-    st.iou().file("updater", address(st));
-    st.iou().file("owner", address(st));
+    st.initialize(address(asset));
   }
 
   function testAddRewarder() public {

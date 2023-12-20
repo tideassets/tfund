@@ -24,7 +24,8 @@ contract EsTokenTest is Test {
 
   function setUp() public {
     ANYONE = new A("Anyone", "ANY");
-    esToken = new EsToken(address(ANYONE), "Test Token", "TT");
+    esToken = new EsToken();
+    esToken.initialize(address(ANYONE), "Test Token", "TT");
     ANYONE.mint(address(this), 1000 ether);
     ANYONE.approve(address(esToken), 1000 ether);
   }

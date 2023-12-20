@@ -4,11 +4,12 @@
 //
 pragma solidity ^0.8.20;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
 
-contract EsToken is ERC20, Auth {
+contract EsToken is ERC20, Auth, Initializable {
   using SafeERC20 for IERC20;
 
   struct Vest {
@@ -17,6 +18,8 @@ contract EsToken is ERC20, Auth {
     uint start;
   }
 
+  string internal name_;
+  string internal symbol_;
   IERC20 public token;
   uint public vestingId = 0;
   uint public VESTING_DURATION = 180 days;
@@ -28,8 +31,20 @@ contract EsToken is ERC20, Auth {
   event Claim(address from, address indexed usr, uint amount);
   event Deposit(address indexed from, address indexed usr, uint amount);
 
-  constructor(address token_, string memory name_, string memory symbol_) ERC20(name_, symbol_) {
-    token = IERC20(token_);
+  constructor() ERC20("", "") {}
+
+  function initialize(address _token, string memory _name, string memory _symbol) public initializer {
+    token = IERC20(_token);
+    name_ = _name;
+    symbol_ = _symbol;
+  }
+
+  function name() public view override returns (string memory) {
+    return name_;
+  }
+
+  function symbol() public view override returns (string memory) {
+    return symbol_;
   }
 
   function setVestingDuration(uint duration) external auth {
