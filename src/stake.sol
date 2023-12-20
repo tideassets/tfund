@@ -47,6 +47,8 @@ contract Stakex is Auth, Initializable {
       ri[who] = ra.length;
     } else if (what == "rm") {
       _rmRewarder(who);
+    } else {
+      revert("Stakex/file-unrecognized-param");
     }
   }
 

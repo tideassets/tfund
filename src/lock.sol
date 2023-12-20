@@ -98,8 +98,12 @@ contract Locker is Auth {
     _unlock("lpFund", start);
   }
 
-  function setLpNext(uint amt) external auth {
-    lpNext = amt;
+  function file(bytes32 what, uint data) external auth {
+    if (what == "next") {
+      lpNext = data;
+    } else {
+      revert("Locker/file-unrecognized-param");
+    }
   }
 
   function _unlock(bytes32 role, uint start_) internal OnlyRole(role) returns (uint) {
