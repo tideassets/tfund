@@ -105,10 +105,14 @@ contract DeployScript is Script {
   }
 
   function _setUpVeTokens() internal {
-    veTDT = new VeToken(address(TDT), "TDT veToken", "veTDT");
-    veTTL = new VeToken(address(TTL), "TTL veToken", "veTTL");
-    veTTS = new VeToken(address(TTS), "TTS veToken", "veTTS");
-    veTTP = new VeToken(address(TTP), "TTP veToken", "veTTP");
+    veTDT = new VeToken();
+    veTDT.initialize(address(TDT), "TDT veToken", "veTDT");
+    veTTL = new VeToken();
+    veTTL.initialize(address(TTL), "TTL veToken", "veTTL");
+    veTTS = new VeToken();
+    veTTS.initialize(address(TTS), "TTS veToken", "veTTS");
+    veTTP = new VeToken();
+    veTTP.initialize(address(TTP), "TTP veToken", "veTTP");
   }
 
   function _setUpEsTokens() internal {

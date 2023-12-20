@@ -39,7 +39,8 @@ contract VeTokenTest is Test {
   function setUp() public {
     TToken tdt = new TToken(address(0x1234), "TDT token", "TDT");
     TDT = IERC20(address(tdt));
-    vt = new VeToken(address(TDT), "TDT veToken", "veTDT");
+    vt = new VeToken();
+    vt.initialize(address(TDT), "TDT veToken", "veTDT");
     u = new User();
     tdt.mint(address(u), 1000 ether);
     u.approve(address(TDT), address(vt), 1000 ether);
