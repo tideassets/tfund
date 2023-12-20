@@ -187,7 +187,7 @@ contract VaultTest is Test {
       amts[i] = 1000 ether;
       names[i] = name;
     }
-    val.initAssets(names, amts);
+    val.init(names, amts);
 
     assertEq(TCAv1.balanceOf(address(val)), 1000 ether);
     assertEq(TCAv2.balanceOf(address(val)), 1000 ether);

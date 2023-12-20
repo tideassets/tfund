@@ -34,7 +34,7 @@ contract Vault is Auth {
     uint min; // min persent
     uint max; // max persent
     uint out; // out persent
-    uint amt;
+    // uint amt;
     address gem; // asset address
     address oracle; // price oracle
     address fund;
@@ -47,7 +47,7 @@ contract Vault is Auth {
   TTokenLike public core; // TDT, TCAv1, TCAv2
   OracleLike public coreOracle; // oracle for core
   bool public inited = false;
-  uint public excfee; //// Fee charged for the part that exceeds the purchase or sale
+  uint public excfee; // Fee charged for the part that exceeds the purchase or sale
 
   uint constant ONE = 1e18;
 
@@ -70,6 +70,18 @@ contract Vault is Auth {
 
   function setFee(uint fee_) external auth {
     excfee = fee_;
+  }
+
+  function init(
+    bytes32 who,
+    uint min,
+    uint max,
+    uint out,
+    address gem,
+    address oracle,
+    address fund
+  ) external auth {
+    asss[who] = Ass(min, max, out, gem, oracle, fund);
   }
 
   function _file(bytes32 who, bool rm) internal {
@@ -101,7 +113,7 @@ contract Vault is Auth {
     } else if (what == "out") {
       asss[who].out = data;
     } else if (what == "amt") {
-      asss[who].amt = data;
+      // asss[who].amt = data;
     } else {
       revert("Vat/file-unrecognized-param");
     }
@@ -234,7 +246,7 @@ contract Vault is Auth {
   }
 
   // no buy fee
-  function initAssets(bytes32[] memory names, uint[] memory amts_) external auth {
+  function init(bytes32[] memory names, uint[] memory amts_) external auth {
     if (inited) {
       // exec once
       return;
