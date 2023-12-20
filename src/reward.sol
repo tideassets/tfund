@@ -4,6 +4,7 @@
 //
 pragma solidity ^0.8.20;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
@@ -18,7 +19,7 @@ interface StakerLike {
   function stkToken() external view returns (IERC20);
 }
 
-abstract contract RewarderBase is Auth {
+abstract contract RewarderBase is Auth, Initializable {
   using SafeERC20 for IERC20;
 
   IERC20 public rewardToken;
@@ -28,7 +29,7 @@ abstract contract RewarderBase is Auth {
 
   uint public constant ONE = 10 ** 18; // one coin
 
-  constructor(address rt, address staker_, address rv) {
+  function initialize(address rt, address staker_, address rv) public virtual initializer {
     rewardToken = IERC20(rt);
     staker = StakerLike(staker_);
     rewardValut = rv;
@@ -98,8 +99,6 @@ contract RewarderCycle is RewarderBase {
   mapping(address => uint) public usid;
 
   uint public constant MIN = 1;
-
-  constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
   function _newCycle(uint rps) internal {
     cycleId++;
@@ -181,8 +180,6 @@ contract RewarderAccum is RewarderBase {
 
   mapping(address => uint) public upts; // user update times
   mapping(address => uint) public uaas; // user accumulated amounts: uaas = upts * staker.balanceOf
-
-  constructor(address rt, address stk, address rv) RewarderBase(rt, stk, rv) {}
 
   function setRPS(uint opsr) external auth {
     OPSR = opsr;

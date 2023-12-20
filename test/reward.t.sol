@@ -50,7 +50,8 @@ contract RewarderAccumTest is Test {
     staker = new Stakex();
     staker.initialize(address(asset));
     iou = staker.iou();
-    R = new RewarderAccum(address(reward), address(staker), address(rewardValut));
+    R = new RewarderAccum();
+    R.initialize(address(reward), address(staker), address(rewardValut));
     // R.setRPS(RAY * 315360 / 1000000 / (1 days * 365)); // yearly rate
     R.setRPS(1e9);
 
@@ -124,7 +125,8 @@ contract RewarderCycleTest is Test {
     staker = new Stakex();
     staker.initialize(address(asset));
     iou = staker.iou();
-    R = new RewarderCycle(address(reward), address(staker), address(rewardValut));
+    R = new RewarderCycle();
+    R.initialize(address(reward), address(staker), address(rewardValut));
 
     R.newCycle(1e9);
     reward.mint(address(rewardValut), 1e9 ether);

@@ -143,15 +143,23 @@ contract DeployScript is Script {
   }
 
   function _setUpRewarders() internal {
-    tdtRewarderCycle = new RewarderCycle(address(TDT), address(tdtStk), address(tsaDao));
-    ttlRewarderCycle = new RewarderCycle(address(TTL), address(ttlStk), address(tsaDao));
-    ttsRewarderCycle = new RewarderCycle(address(TTS), address(ttsStk), address(tsaDao));
-    ttpRewarderCycle = new RewarderCycle(address(TTP), address(ttpStk), address(tsaDao));
+    tdtRewarderCycle = new RewarderCycle();
+    tdtRewarderCycle.initialize(address(TDT), address(tdtStk), address(tsaDao));
+    ttlRewarderCycle = new RewarderCycle();
+    ttlRewarderCycle.initialize(address(TTL), address(ttlStk), address(tsaDao));
+    ttsRewarderCycle = new RewarderCycle();
+    ttsRewarderCycle.initialize(address(TTS), address(ttsStk), address(tsaDao));
+    ttpRewarderCycle = new RewarderCycle();
+    ttpRewarderCycle.initialize(address(TTP), address(ttpStk), address(tsaDao));
 
-    tdtRewarderAccum = new RewarderAccum(address(TDT), address(tdtStk), address(tsaDao));
-    ttlRewarderAccum = new RewarderAccum(address(TTL), address(ttlStk), address(tsaDao));
-    ttsRewarderAccum = new RewarderAccum(address(TTS), address(ttsStk), address(tsaDao));
-    ttpRewarderAccum = new RewarderAccum(address(TTP), address(ttpStk), address(tsaDao));
+    tdtRewarderAccum = new RewarderAccum();
+    tdtRewarderAccum.initialize(address(TDT), address(tdtStk), address(tsaDao));
+    ttlRewarderAccum = new RewarderAccum();
+    ttlRewarderAccum.initialize(address(TTL), address(ttlStk), address(tsaDao));
+    ttsRewarderAccum = new RewarderAccum();
+    ttsRewarderAccum.initialize(address(TTS), address(ttsStk), address(tsaDao));
+    ttpRewarderAccum = new RewarderAccum();
+    ttpRewarderAccum.initialize(address(TTP), address(ttpStk), address(tsaDao));
   }
 
   function _setUpAuth() internal {
