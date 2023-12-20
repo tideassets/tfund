@@ -96,7 +96,7 @@ contract EsTokenTest is Test {
 
   function testVestingDuration() public {
     assertEq(esToken.VESTING_DURATION(), 180 days, "Vesting duration should be 180 days");
-    esToken.setVestingDuration(90 days);
+    esToken.file("duration", 90 days);
     assertEq(esToken.VESTING_DURATION(), 90 days, "Vesting duration should be 90 days");
   }
 

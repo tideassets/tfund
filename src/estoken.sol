@@ -33,7 +33,10 @@ contract EsToken is ERC20, Auth, Initializable {
 
   constructor() ERC20("", "") {}
 
-  function initialize(address _token, string memory _name, string memory _symbol) public initializer {
+  function initialize(address _token, string memory _name, string memory _symbol)
+    public
+    initializer
+  {
     token = IERC20(_token);
     name_ = _name;
     symbol_ = _symbol;
@@ -47,8 +50,12 @@ contract EsToken is ERC20, Auth, Initializable {
     return symbol_;
   }
 
-  function setVestingDuration(uint duration) external auth {
-    VESTING_DURATION = duration;
+  function file(bytes32 what, uint data) external auth {
+    if (what == "duration") {
+      VESTING_DURATION = data;
+    } else {
+      revert("EsToken/file-unrecognized-param");
+    }
   }
 
   function vesting(uint amt) external whenNotPaused returns (uint) {
