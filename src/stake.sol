@@ -4,6 +4,7 @@
 //
 pragma solidity ^0.8.20;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
@@ -13,7 +14,7 @@ interface RewarderLike {
   function unstake(address, uint) external;
 }
 
-contract Stakex is ERC20, Auth {
+contract Stakex is ERC20, Auth, Initializable {
   using SafeERC20 for IERC20;
 
   IERC20 public stkToken;
