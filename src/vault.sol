@@ -4,6 +4,7 @@
 //
 pragma solidity ^0.8.20;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
@@ -27,7 +28,7 @@ interface TTokenLike {
   function burn(address account, uint amt) external;
 }
 
-contract Vault is Auth {
+contract Vault is Auth, Initializable {
   using SafeERC20 for IERC20;
 
   struct Ass {
@@ -51,7 +52,7 @@ contract Vault is Auth {
 
   uint constant ONE = 1e18;
 
-  constructor(address core_) {
+  function initialize(address core_) public initializer {
     core = TTokenLike(core_);
     excfee = ONE / 10;
   }

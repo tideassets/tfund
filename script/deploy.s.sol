@@ -35,7 +35,7 @@ contract DeployScript is Script {
   TToken TTS;
   TToken TTP;
 
-  Vault TDTVault;
+  Vault tdtVault;
   Vault sTCAVault;
   Vault vTCAVault;
 
@@ -83,9 +83,12 @@ contract DeployScript is Script {
   }
 
   function _setUpVaults() internal {
-    TDTVault = new Vault(address(TDT));
-    sTCAVault = new Vault(address(sTCA));
-    vTCAVault = new Vault(address(vTCA));
+    tdtVault = new Vault();
+    tdtVault.initialize(address(TDT));
+    sTCAVault = new Vault();
+    sTCAVault.initialize(address(sTCA));
+    vTCAVault = new Vault();
+    vTCAVault.initialize(address(vTCA));
   }
 
   function _setUpDaos() internal {
@@ -142,7 +145,7 @@ contract DeployScript is Script {
   }
 
   function _setUpAuth() internal {
-    TDT.rely(address(TDTVault));
+    TDT.rely(address(tdtVault));
     sTCA.rely(address(sTCAVault));
     vTCA.rely(address(vTCAVault));
 

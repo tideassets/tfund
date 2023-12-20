@@ -81,7 +81,8 @@ contract VaultTest is Test {
   function setUp() public {
     TToken tdt = new TToken(address(0x1234), "TDT token", "TDT");
     TDT = IERC20(address(tdt));
-    val = new Vault(address(TDT));
+    val = new Vault();
+    val.initialize(address(TDT));
     MockOracle o = new MockOracle();
     val.file("Oracle", address(o));
     o.setLastAnswer(1 ether);
