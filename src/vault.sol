@@ -93,7 +93,7 @@ contract Vault is Auth, Initializable {
       assList.push(who);
       assIndexs[who] = assList.length;
     } else {
-      require(assIndexs[who] > 0, "Vat/asset not added");
+      require(assIndexs[who] > 0, "Vault/asset not added");
       bytes32 last = assList[assList.length - 1];
       if (who != last) {
         uint i = assIndexs[who] - 1;
@@ -116,7 +116,7 @@ contract Vault is Auth, Initializable {
     } else if (what == "amt") {
       // asss[who].amt = data;
     } else {
-      revert("Vat/file-unrecognized-param");
+      revert("Vault/file-unrecognized-param");
     }
   }
 
@@ -128,17 +128,17 @@ contract Vault is Auth, Initializable {
     } else if (what == "fund") {
       asss[who].fund = data;
     } else {
-      revert("Vat/file-unrecognized-param");
+      revert("Vault/file-unrecognized-param");
     }
     _file(who, what == "gem" && data == address(0));
   }
 
   function file(bytes32 what, address data) external auth whenNotPaused {
-    require(data != address(0), "Vat/file-address-is-zero");
+    require(data != address(0), "Vault/file-address-is-zero");
     if (what == "Oracle") {
       coreOracle = OracleLike(data);
     } else {
-      revert("Vat/file-unrecognized-param");
+      revert("Vault/file-unrecognized-param");
     }
   }
 
@@ -146,7 +146,7 @@ contract Vault is Auth, Initializable {
     if (what == "fee") {
       excfee = data;
     } else {
-      revert("Vat/file-unrecognized-param");
+      revert("Vault/file-unrecognized-param");
     }
   }
 
@@ -193,7 +193,7 @@ contract Vault is Auth, Initializable {
     (, int lastAnswer,,,) = o.latestRoundData();
     int dval = (lastAnswer * amt) / int(ONE);
     total += dval;
-    require(total > 0, "Val/ass amount error");
+    require(total > 0, "Vault/ass amount error");
     assVal += dval;
     if (assVal < 0) {
       assVal = 0;
@@ -215,7 +215,7 @@ contract Vault is Auth, Initializable {
   function deposit(bytes32 name, uint amt) external auth {
     Ass memory ass = asss[name];
     uint max = calcuOut(name);
-    require(amt <= max, "Val/amt error");
+    require(amt <= max, "Vault/amt error");
     IERC20 token = IERC20(ass.gem);
     token.forceApprove(ass.fund, amt);
     FundLike(ass.fund).deposit(ass.gem, amt);
@@ -264,13 +264,13 @@ contract Vault is Auth, Initializable {
     returns (uint)
   {
     Ass memory ass = asss[name];
-    require(ass.max > 0, "Vat/asset not in whitelist");
+    require(ass.max > 0, "Vault/asset not in whitelist");
 
     (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
     uint need = out * uint(corePrice()) / uint(assPrice);
     uint fee = buyFee(name, need);
     need += fee;
-    require(need <= maxIn, "Vat/amount in not enough");
+    require(need <= maxIn, "Vault/amount in not enough");
     IERC20 token = IERC20(ass.gem);
     token.safeTransferFrom(msg.sender, address(this), need);
     core.mint(to, out);
@@ -283,14 +283,14 @@ contract Vault is Auth, Initializable {
     returns (uint)
   {
     uint max = _buy(name, to, amt, true);
-    require(max >= minOut, "Vat/amount out is too large");
+    require(max >= minOut, "Vault/amount out is too large");
     return max;
   }
 
   // buy tdt, sell amt of ass buy tdt
   function _buy(bytes32 name, address to, uint amt, bool useFee) internal returns (uint) {
     Ass memory ass = asss[name];
-    require(ass.max > 0, "Vat/asset not in whitelist");
+    require(ass.max > 0, "Vault/asset not in whitelist");
 
     uint fee = 0;
     if (useFee) {
@@ -313,11 +313,11 @@ contract Vault is Auth, Initializable {
     returns (uint)
   {
     Ass memory ass = asss[name];
-    require(ass.max > 0, "Vat/asset not in whitelist");
+    require(ass.max > 0, "Vault/asset not in whitelist");
     (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
     uint fee = sellFee(name, out);
     uint need = uint(assPrice * int(out + fee) / corePrice());
-    require(need <= maxIn, "Val/amount in is not enough");
+    require(need <= maxIn, "Vault/amount in is not enough");
 
     core.burn(msg.sender, need);
 
@@ -333,7 +333,7 @@ contract Vault is Auth, Initializable {
     returns (uint)
   {
     Ass memory ass = asss[name];
-    require(ass.max > 0, "Vat/asset not in whitelist");
+    require(ass.max > 0, "Vault/asset not in whitelist");
 
     core.burn(msg.sender, amt);
 
@@ -342,7 +342,7 @@ contract Vault is Auth, Initializable {
 
     uint fee = sellFee(name, max);
     max = max - fee;
-    require(max >= minOut, "Vat/amount out is too large");
+    require(max >= minOut, "Vault/amount out is too large");
 
     IERC20 token = IERC20(ass.gem);
     token.safeTransfer(to, max);
