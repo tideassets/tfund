@@ -19,6 +19,10 @@ contract Dao is Auth {
     IERC20(token).safeTransfer(msg.sender, amt);
   }
 
+  function withdrawETH(uint amt) external auth whenNotPaused {
+    payable(msg.sender).transfer(amt);
+  }
+
   function approve(address token, address to, uint amt) external auth whenNotPaused {
     IERC20(token).forceApprove(to, amt);
   }

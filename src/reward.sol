@@ -121,14 +121,13 @@ contract RewarderCycle is RewarderBase {
   // _unstake reduce stake amount from current cycle
   function _unstake(address usr, uint amt) internal override {
     uint cid = cycleId;
-    mapping(uint => uint) storage us_ = us[usr];
-
     uint uid = usid[usr];
     require(uid <= cid, "RewarderCycle/uid > cid");
     usid[usr] = cid;
 
     uint balance = staker.balanceOf(usr);
     uint n = balance - amt;
+    mapping(uint => uint) storage us_ = us[usr];
     us_[cid] = n > 0 ? n : MIN;
   }
 
