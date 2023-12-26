@@ -4,7 +4,7 @@
 //
 pragma solidity ^0.8.20;
 
-interface IExRouter {
+interface IPerpExRouter {
   struct CreateDepositParams {
     address receiver;
     address callbackContract;
@@ -44,29 +44,60 @@ interface IExRouter {
     Props[] primaryPrices;
   }
 
-  function createDeposit(CreateDepositParams calldata params) external returns (bytes32);
-  function cancelDeposit(bytes32 key) external;
-  function createWithdrawal(CreateWithdrawalParams calldata params) external returns (bytes32);
-  function cancelWithdrawal(bytes32 key) external;
+  function sendWnt(address receiver, uint amount) external payable;
+  function sendTokens(address token, address receiver, uint amount) external payable;
+  function sendNativeToken(address receiver, uint amount) external payable;
+
+  function createDeposit(CreateDepositParams calldata params) external payable returns (bytes32);
+  function cancelDeposit(bytes32 key) external payable;
+
+  function createWithdrawal(CreateWithdrawalParams calldata params)
+    external
+    payable
+    returns (bytes32);
+  function cancelWithdrawal(bytes32 key) external payable;
+
   function simulateExecuteDeposit(bytes32 key, SimulatePricesParams memory simulatedOracleParams)
-    external;
+    external
+    payable;
   function simulateExecuteWithdrawal(bytes32 key, SimulatePricesParams memory simulatedOracleParams)
-    external;
+    external
+    payable;
+
   function claimFundingFees(address[] memory markets, address[] memory tokens, address receiver)
     external
+    payable
     returns (uint[] memory);
   function claimCollateral(
     address[] memory markets,
     address[] memory tokens,
     uint[] memory timeKeys,
     address receiver
-  ) external returns (uint[] memory);
+  ) external payable returns (uint[] memory);
   function claimAffiliateRewards(
     address[] memory markets,
     address[] memory tokens,
     address receiver
-  ) external returns (uint[] memory);
+  ) external payable returns (uint[] memory);
   function claimUiFees(address[] memory markets, address[] memory tokens, address receiver)
     external
+    payable
     returns (uint[] memory);
+}
+
+interface IPerpMarket {
+  struct Props {
+    address marketToken;
+    address indexToken;
+    address longToken;
+    address shortToken;
+  }
+}
+
+interface IPerpReader is IPerpMarket {
+  function getMarketBySalt(address dataStore, bytes32 salt) external view returns (Props memory);
+  function getMarkets(address dataStore, uint start, uint end)
+    external
+    view
+    returns (Props[] memory);
 }

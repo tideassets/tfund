@@ -13,7 +13,7 @@ interface FundLike {
   function deposit(address ass, uint amt) external;
   function withdraw(address ass, uint amt) external;
   function balanceOf(address usr, address ass) external view returns (uint);
-  function feeOf(address usr, address ass) external view returns (uint);
+  function profitOf(address usr, address ass) external view returns (uint);
 }
 
 interface OracleLike {
@@ -157,7 +157,7 @@ contract Vault is Auth, Initializable {
     }
     FundLike fund = FundLike(ass.fund);
     uint amt = fund.balanceOf(address(this), ass.gem);
-    uint fee = fund.feeOf(address(this), ass.gem);
+    uint fee = fund.profitOf(address(this), ass.gem);
     return amt + fee;
   }
 

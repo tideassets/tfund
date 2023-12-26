@@ -4,7 +4,7 @@
 //
 pragma solidity ^0.8.20;
 
-interface IPool {
+interface ILendPool {
   function supply(address asset, uint amount, address onBehalfOf, uint16 referralCode) external;
   function withdraw(address asset, uint amount, address to) external returns (uint);
   function getUserAccountData(address user)
@@ -20,12 +20,12 @@ interface IPool {
     );
 }
 
-interface IAddressProvider {
+interface ILendAddressProvider {
   function getPool() external view returns (address);
   function getPoolDataProvider() external view returns (address);
 }
 
-interface IDataProvider {
+interface ILendDataProvider {
   function getUserReserveData(address asset, address user)
     external
     view
@@ -48,4 +48,9 @@ interface IDataProvider {
       address stableDebtTokenAddress,
       address variableDebtTokenAddress
     );
+}
+
+interface IAToken {
+  function balanceOf(address account) external view returns (uint);
+  function scaledBalanceOf(address account) external view returns (uint);
 }

@@ -4,7 +4,6 @@
 //
 pragma solidity ^0.8.20;
 
-
 interface ISwapMasterChef {
   struct IncreaseLiquidityParams {
     uint tokenId;
@@ -53,12 +52,22 @@ interface ISwapMasterChef {
     payable
     returns (uint128 liquidity, uint amount0, uint amount1);
 
+  function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+    external
+    payable
+    returns (uint amount0, uint amount1);
   function collect(CollectParams calldata params)
     external
     payable
     returns (uint amount0, uint amount1);
-
+  function collectTo(CollectParams calldata params, address to)
+    external
+    payable
+    returns (uint amount0, uint amount1);
+  function withdraw(uint _tokenId, address _to) external returns (uint reward);
   function burn(uint tokenId) external payable;
+  function nonfungiblePositionManager() external view returns (address);
+  function harvest(uint _tokenId, address _to) external returns (uint reward);
 }
 
 interface ISwapNFTManager {
@@ -80,4 +89,7 @@ interface ISwapNFTManager {
     external
     payable
     returns (uint tokenId, uint128 liquidity, uint amount0, uint amount1);
+
+  function transferFrom(address from, address to, uint tokenId) external;
+  function balanceOf(address owner) external view returns (uint balance);
 }
