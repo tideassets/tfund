@@ -8,7 +8,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "src/auth.sol";
-import {IPerpExRouter, IPerpReader} from "src/fund/iperp.sol";
+import {IPerpExRouter, IPerpReader, IPerpMarket, BaseOrderUtils} from "src/fund/iperp.sol";
 import {ISwapMasterChef, ISwapNFTManager} from "src/fund/iswap.sol";
 import {ILendPool, ILendAddressProvider, ILendDataProvider, IAToken} from "src/fund/ilend.sol";
 import {PerpCallback} from "./lib/perpcallback.sol";
@@ -44,9 +44,19 @@ contract Fund is Auth, Initializable {
   mapping(uint => uint) public nftIdsIndex;
   mapping(uint => mapping(address => uint)) public swapDeposits;
 
-  bytes32[] public perpDepositKeys;
-  mapping(bytes32 => uint) public perpDepositKeysIndex;
-  mapping(bytes32 => mapping(address => uint)) public perpDepositKeysAmount;
+  struct PerpMarket {
+    address market;
+    address long;
+    address short;
+    uint longAmount;
+    uint shortAmount;
+  }
+
+  address[] public perpMarketList;
+  mapping(address => uint) public perpMarketsIndex;
+  mapping(address => PerpMarket) public perpMarkets;
+  mapping(address => mapping(address => uint)) public perpMarketsAmount;
+  mapping(bytes32 => PerpMarket) public perpWithdraws;
 
   function initialize(InitAddresses calldata addrs) external initializer {
     perpExRouter = IPerpExRouter(addrs.perpExRouter);
@@ -80,14 +90,24 @@ contract Fund is Auth, Initializable {
     assetsDeposit[asset] -= amount;
   }
 
-  function _claimProfit(address asset) internal {}
-
-  function balanceOf(address usr, address ass) external view returns (uint) {
-    return vaultDeposits[usr][ass];
+  function _claimProfit(address asset) internal {
+    _swapClaim(asset);
+    _lendClaim(asset);
   }
 
-  function profitOf(address usr, address ass) external view returns (uint) {
-    return 0;
+  function balanceOf(address vault, address ass) external view returns (uint) {
+    return vaultDeposits[vault][ass];
+  }
+
+  function profitOf(address vault, address ass) external view returns (uint) {
+    uint lp = lendProfit(ass);
+    uint sp = swapProfit(ass);
+    uint pp = perpProfit(ass);
+    uint vbal = vaultDeposits[vault][ass];
+    uint bal = IERC20(ass).balanceOf(address(this));
+    uint abal = assetsDeposit[ass];
+
+    return (bal - abal + lp + sp + pp) * vbal / abal;
   }
 
   function genPerpMarketSalt(address index, address long, address short)
@@ -98,18 +118,43 @@ contract Fund is Auth, Initializable {
     salt = keccak256(abi.encode("GMX_MARKET", index, long, short, "base-v1"));
   }
 
-  function perpDepositCallback(bytes32 key, uint amount) external {}
-  function perpWithdrawCallback(bytes32 key, uint amount0, uint amount1) external {}
+  function getPerpMarket(bytes32 salt) public view returns (address) {
+    IPerpMarket.Props memory market = perpReader.getMarketBySalt(perpDataStore, salt);
+    return market.marketToken;
+  }
+
+  function perpDepositCallback(bytes32, PerpMarket memory market, uint) external {
+    perpMarketsAmount[market.market][market.long] += market.longAmount;
+    perpMarketsAmount[market.market][market.short] += market.shortAmount;
+    if (perpMarketsIndex[market.market] == 0) {
+      perpMarketList.push(market.market);
+      perpMarketsIndex[market.market] = perpMarketList.length;
+      perpMarkets[market.market] = market;
+    }
+  }
+
   function perpCancelDepositCallback(bytes32 key) external {}
-  function perpCancelWithdrawCallback(bytes32 key) external {}
+
+  function perpWithdrawCallback(bytes32 key, uint amount0, uint amount1) external {
+    PerpMarket memory pmarket = perpWithdraws[key];
+    require(pmarket.market != address(0), "Fund/invalid withdraw key");
+    address market = pmarket.market;
+    perpMarketsAmount[market][pmarket.long] -= amount0;
+    perpMarketsAmount[market][pmarket.short] -= amount1;
+  }
+
+  function perpCancelWithdrawCallback(bytes32 key) external {
+    delete perpWithdraws[key];
+  }
 
   function perpDeposit(
     address market,
     address long,
     address short,
     uint longAmount,
-    uint shortAmount
-  ) external auth returns (bytes32 key) {
+    uint shortAmount,
+    uint execFee
+  ) external payable auth returns (bytes32 key) {
     perpExRouter.sendTokens(long, perpDepositVault, longAmount);
     perpExRouter.sendTokens(short, perpDepositVault, shortAmount);
     IPerpExRouter.CreateDepositParams memory params = IPerpExRouter.CreateDepositParams({
@@ -122,12 +167,30 @@ contract Fund is Auth, Initializable {
       longTokenSwapPath: new address[](0),
       shortTokenSwapPath: new address[](0),
       minMarketTokens: 0,
-      shouldUnwrapNativeToken: false,
-      executionFee: 0,
+      shouldUnwrapNativeToken: true,
+      executionFee: execFee,
       callbackGasLimit: 0
     });
 
     key = perpExRouter.createDeposit(params);
+
+    bytes memory call0 = abi.encodeWithSignature(
+      "sendTokens(address,address,uint256)", long, perpDepositVault, longAmount
+    );
+    bytes memory call1 = abi.encodeWithSignature(
+      "sendTokens(address,address,uint256)", short, perpDepositVault, shortAmount
+    );
+    bytes memory call2 = abi.encodeWithSignature(
+      "createDeposit((address,address,address,address,address,address,address[],address[],uint256,bool,uint256,uint256))",
+      params
+    );
+    bytes[] memory calls = new bytes[](3);
+    calls[0] = call0;
+    calls[1] = call1;
+    calls[2] = call2;
+
+    bytes[] memory r = perpExRouter.multicall{value: execFee}(calls);
+    return bytes32(r[2]);
   }
 
   function perpWithdraw(
@@ -135,10 +198,9 @@ contract Fund is Auth, Initializable {
     address long,
     address short,
     uint longAmount,
-    uint shortAmount
-  ) external auth returns (bytes32 key) {
-    perpExRouter.sendTokens(long, perpDepositVault, longAmount);
-    perpExRouter.sendTokens(short, perpDepositVault, shortAmount);
+    uint shortAmount,
+    uint execFee
+  ) external payable auth returns (bytes32 key) {
     IPerpExRouter.CreateWithdrawalParams memory params = IPerpExRouter.CreateWithdrawalParams({
       receiver: address(this),
       callbackContract: perpCallback,
@@ -149,11 +211,40 @@ contract Fund is Auth, Initializable {
       minLongTokenAmount: longAmount,
       minShortTokenAmount: shortAmount,
       shouldUnwrapNativeToken: false,
-      executionFee: 0,
+      executionFee: execFee,
       callbackGasLimit: 0
     });
 
-    key = perpExRouter.createWithdrawal(params);
+    key = perpExRouter.createWithdrawal{value: execFee}(params);
+    perpWithdraws[key] = PerpMarket({
+      market: market,
+      long: long,
+      short: short,
+      longAmount: longAmount,
+      shortAmount: shortAmount
+    });
+  }
+
+  function perpOrder(BaseOrderUtils.CreateOrderParams calldata params)
+    external
+    payable
+    returns (bytes32)
+  {
+    return perpExRouter.createOrder{value: params.numbers.executionFee}(params);
+  }
+
+  function perpUpdateOrder(
+    bytes32 key,
+    uint sizeDeltaUsd,
+    uint acceptablePrice,
+    uint triggerPrice,
+    uint minOutputAmount
+  ) external payable {
+    perpExRouter.updateOrder(key, sizeDeltaUsd, acceptablePrice, triggerPrice, minOutputAmount);
+  }
+
+  function perpCancelOrder(bytes32 key) external payable {
+    perpExRouter.cancelOrder(key);
   }
 
   function perpCancelDeposit(bytes32 key) external auth {
@@ -164,47 +255,39 @@ contract Fund is Auth, Initializable {
     perpExRouter.cancelWithdrawal(key);
   }
 
-  function perpSimulateExecuteDeposit(
-    bytes32 key,
-    IPerpExRouter.SimulatePricesParams memory simulatedOracleParams
-  ) external auth {
-    perpExRouter.simulateExecuteDeposit(key, simulatedOracleParams);
+  // function perpSimulateExecuteDeposit(
+  //   bytes32 key,
+  //   IPerpExRouter.SimulatePricesParams memory simulatedOracleParams
+  // ) external auth {
+  //   perpExRouter.simulateExecuteDeposit(key, simulatedOracleParams);
+  // }
+
+  // function perpSimulateExecuteWithdrawal(
+  //   bytes32 key,
+  //   IPerpExRouter.SimulatePricesParams memory simulatedOracleParams
+  // ) external auth {
+  //   perpExRouter.simulateExecuteWithdrawal(key, simulatedOracleParams);
+  // }
+
+  function perpBalance(address asset) public view returns (uint) {
+    uint bal = 0;
+    for (uint i = 0; i < perpMarketList.length; ++i) {
+      address mt = perpMarketList[i];
+      PerpMarket memory m = perpMarkets[mt];
+      if (m.long == asset) {
+        bal += m.longAmount;
+      } else if (m.short == asset) {
+        bal += m.shortAmount;
+      }
+    }
+    return bal;
   }
 
-  function perpSimulateExecuteWithdrawal(
-    bytes32 key,
-    IPerpExRouter.SimulatePricesParams memory simulatedOracleParams
-  ) external auth {
-    perpExRouter.simulateExecuteWithdrawal(key, simulatedOracleParams);
+  function perpProfit(address) public pure returns (uint) {
+    return 0;
   }
 
-  // function perpClaimFundingFees(address[] memory markets, address[] memory tokens)
-  //   external
-  //   auth
-  //   returns (uint[] memory)
-  // {
-  //   return perpExRouter.claimFundingFees(markets, tokens, address(this));
-  // }
-
-  // function perpClaimCollateral(address[] memory markets, address[] memory tokens)
-  //   external
-  //   auth
-  //   returns (uint[] memory)
-  // {
-  //   uint[] memory timeKeys = new uint[](markets.length);
-  //   for (uint i = 0; i < markets.length; i++) {
-  //     timeKeys[i] = block.timestamp;
-  //   }
-  //   return perpExRouter.claimCollateral(markets, tokens, timeKeys, address(this));
-  // }
-
-  // function perpClaimAffiliateRewards(address[] memory markets, address[] memory tokens)
-  //   external
-  //   auth
-  //   returns (uint[] memory)
-  // {
-  //   return perpExRouter.claimAffiliateRewards(markets, tokens, address(this));
-  // }
+  function _perpClaim(address) internal pure {}
 
   function swapNftIds() external view returns (uint[] memory) {
     return nftIds;

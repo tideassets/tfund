@@ -4,6 +4,8 @@
 //
 pragma solidity ^0.8.20;
 
+import "./lib/BaseOrderUtils.sol";
+
 interface IPerpExRouter {
   struct CreateDepositParams {
     address receiver;
@@ -57,10 +59,26 @@ interface IPerpExRouter {
     returns (bytes32);
   function cancelWithdrawal(bytes32 key) external payable;
 
+  function createOrder(BaseOrderUtils.CreateOrderParams calldata params)
+    external
+    payable
+    returns (bytes32);
+  function updateOrder(
+    bytes32 key,
+    uint sizeDeltaUsd,
+    uint acceptablePrice,
+    uint triggerPrice,
+    uint minOutputAmount
+  ) external payable;
+  function cancelOrder(bytes32 key) external payable;
+
   function simulateExecuteDeposit(bytes32 key, SimulatePricesParams memory simulatedOracleParams)
     external
     payable;
   function simulateExecuteWithdrawal(bytes32 key, SimulatePricesParams memory simulatedOracleParams)
+    external
+    payable;
+  function simulateExecuteOrder(bytes32 key, SimulatePricesParams memory simulatedOracleParams)
     external
     payable;
 
@@ -83,6 +101,8 @@ interface IPerpExRouter {
     external
     payable
     returns (uint[] memory);
+
+  function multicall(bytes[] calldata data) external payable returns (bytes[] memory results);
 }
 
 interface IPerpMarket {

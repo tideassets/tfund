@@ -6,11 +6,20 @@ pragma solidity ^0.8.20;
 
 import "./Deposit.sol";
 import "./Withdrawal.sol";
+import "./Order.sol";
 import "./EventUtils.sol";
 import {Auth} from "../../auth.sol";
 
 interface IFund {
-  function perpDepositCallback(bytes32 key, uint amount) external;
+  struct PerpMarket {
+    address market;
+    address long;
+    address short;
+    uint longAmount;
+    uint shortAmount;
+  }
+
+  function perpDepositCallback(bytes32 key, PerpMarket memory market, uint amount) external;
   function perpCancelDepositCallback(bytes32 key) external;
   function perpWithdrawCallback(bytes32 key, uint amount0, uint amoutn1) external;
   function perpCancelWithdrawCallback(bytes32 key) external;
@@ -25,10 +34,17 @@ contract PerpCallback {
 
   function afterDepositExecution(
     bytes32 key,
-    Deposit.Props memory,
+    Deposit.Props memory deposit,
     EventUtils.EventLogData memory eventData
   ) external {
-    IFund(fund).perpDepositCallback(key, eventData.uintItems.items[0].value);
+    IFund.PerpMarket memory market = IFund.PerpMarket({
+      market: deposit.addresses.market,
+      long: deposit.addresses.initialLongToken,
+      short: deposit.addresses.initialShortToken,
+      longAmount: deposit.numbers.initialLongTokenAmount,
+      shortAmount: deposit.numbers.initialShortTokenAmount
+    });
+    IFund(fund).perpDepositCallback(key, market, eventData.uintItems.items[0].value);
   }
 
   function afterDepositCancellation(
@@ -56,4 +72,22 @@ contract PerpCallback {
   ) external {
     IFund(fund).perpCancelWithdrawCallback(key);
   }
+
+  function afterOrderExecution(
+    bytes32 key,
+    Order.Props memory order,
+    EventUtils.EventLogData memory eventData
+  ) external {}
+
+  function afterOrderCancellation(
+    bytes32 key,
+    Order.Props memory order,
+    EventUtils.EventLogData memory eventData
+  ) external {}
+
+  function afterOrderFrozen(
+    bytes32 key,
+    Order.Props memory order,
+    EventUtils.EventLogData memory eventData
+  ) external {}
 }
