@@ -6,6 +6,7 @@ import {Test, console2} from "forge-std/Test.sol";
 interface IA {
   function foo(address a) external;
   function b() external view returns (address);
+  function s() external view returns (uint a, address b);
 }
 
 interface IB {
@@ -19,10 +20,19 @@ contract B {
 }
 
 contract A {
+  struct S {
+    address a;
+    IB b;
+    address c;
+  }
+
   IB public b;
+  S public s;
 
   constructor() {
     b = IB(address(new B()));
+    s.b = b;
+    s.a = address(this);
   }
 
   function foo(IB b_) external {
@@ -36,7 +46,8 @@ contract TestInterface is Test {
     B b = new B();
     IA ia = IA(address(a));
     ia.foo(address(b));
-    console2.log("b.b", ia.b());
+    (uint a_, address b_) = ia.s();
+    console2.log("a.b", ia.b(), b_, a_);
     IB(ia.b()).foo(address(ia));
   }
 }
