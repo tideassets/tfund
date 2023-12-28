@@ -51,6 +51,8 @@ contract Vault is Auth, Initializable {
   uint public excfee; // Fee charged for the part that exceeds the purchase or sale
 
   uint constant ONE = 1e18;
+  // oracal price precision is 1e8, we use 1e18, so must expend 1e10
+  uint constant EXPEND_ORACAL_PRICE_PRECISION = 1e10;
 
   function initialize(address core_) public initializer {
     core = TTokenLike(core_);
@@ -62,7 +64,13 @@ contract Vault is Auth, Initializable {
       return int(ONE);
     }
     (, int lasstAnswer,,,) = OracleLike(coreOracle).latestRoundData();
-    return lasstAnswer;
+    return lasstAnswer * int(EXPEND_ORACAL_PRICE_PRECISION);
+  }
+
+  function assPrice(bytes32 name) public view returns (int) {
+    OracleLike o = OracleLike(asss[name].oracle);
+    (, int lasstAnswer,,,) = o.latestRoundData();
+    return lasstAnswer * int(EXPEND_ORACAL_PRICE_PRECISION);
   }
 
   function assLen() public view returns (uint) {
@@ -171,9 +179,7 @@ contract Vault is Auth, Initializable {
 
   function assetValue(bytes32 name) public view returns (uint) {
     uint balance = assetAmount(name);
-    OracleLike o = OracleLike(asss[name].oracle);
-    (, int lastAnswer,,,) = o.latestRoundData();
-    uint value = uint(lastAnswer) * balance / ONE;
+    uint value = uint(assPrice(name)) * balance / ONE;
     return value;
   }
 
@@ -186,12 +192,9 @@ contract Vault is Auth, Initializable {
   }
 
   function _calcuPersent(bytes32 name, int amt) internal view returns (uint) {
-    Ass memory ass = asss[name];
     int total = int(totalValue());
     int assVal = int(assetValue(name));
-    OracleLike o = OracleLike(ass.oracle);
-    (, int lastAnswer,,,) = o.latestRoundData();
-    int dval = (lastAnswer * amt) / int(ONE);
+    int dval = (assPrice(name) * amt) / int(ONE);
     total += dval;
     require(total > 0, "Vault/ass amount error");
     assVal += dval;
@@ -266,8 +269,7 @@ contract Vault is Auth, Initializable {
     Ass memory ass = asss[name];
     require(ass.max > 0, "Vault/asset not in whitelist");
 
-    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
-    uint need = out * uint(corePrice()) / uint(assPrice);
+    uint need = out * uint(corePrice()) / uint(assPrice(name));
     uint fee = buyFee(name, need);
     need += fee;
     require(need <= maxIn, "Vault/amount in not enough");
@@ -297,8 +299,7 @@ contract Vault is Auth, Initializable {
       fee = buyFee(name, amt);
     }
 
-    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
-    uint max = uint(assPrice) * (amt - fee) / uint(corePrice());
+    uint max = uint(assPrice(name)) * (amt - fee) / uint(corePrice());
 
     IERC20 token = IERC20(ass.gem);
     token.safeTransferFrom(msg.sender, address(this), amt);
@@ -314,9 +315,8 @@ contract Vault is Auth, Initializable {
   {
     Ass memory ass = asss[name];
     require(ass.max > 0, "Vault/asset not in whitelist");
-    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
     uint fee = sellFee(name, out);
-    uint need = uint(assPrice * int(out + fee) / corePrice());
+    uint need = uint(assPrice(name) * int(out + fee) / corePrice());
     require(need <= maxIn, "Vault/amount in is not enough");
 
     core.burn(msg.sender, need);
@@ -337,8 +337,7 @@ contract Vault is Auth, Initializable {
 
     core.burn(msg.sender, amt);
 
-    (, int assPrice,,,) = OracleLike(ass.oracle).latestRoundData();
-    uint max = uint(corePrice() * int(amt) / assPrice);
+    uint max = uint(corePrice() * int(amt) / assPrice(name));
 
     uint fee = sellFee(name, max);
     max = max - fee;

@@ -8,7 +8,6 @@ import "./Deposit.sol";
 import "./Withdrawal.sol";
 import "./Order.sol";
 import "./EventUtils.sol";
-import {Auth} from "../../auth.sol";
 
 interface IFund {
   struct PerpMarket {

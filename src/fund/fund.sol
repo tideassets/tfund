@@ -57,6 +57,8 @@ contract Fund is Auth, Initializable {
   mapping(address => PerpMarket) public perpMarkets;
   mapping(address => mapping(address => uint)) public perpMarketsAmount;
   mapping(bytes32 => PerpMarket) public perpWithdraws;
+  bytes32 public constant MAX_PNL_FACTOR_FOR_TRADERS =
+    keccak256(abi.encode("MAX_PNL_FACTOR_FOR_TRADERS"));
 
   function initialize(InitAddresses calldata addrs) external initializer {
     perpExRouter = IPerpExRouter(addrs.perpExRouter);
@@ -119,8 +121,32 @@ contract Fund is Auth, Initializable {
   }
 
   function getPerpMarket(bytes32 salt) public view returns (address) {
-    IPerpMarket.Props memory market = perpReader.getMarketBySalt(perpDataStore, salt);
+    IPerpMarket.MarketProps memory market = perpReader.getMarketBySalt(perpDataStore, salt);
     return market.marketToken;
+  }
+
+  function getPerpMarketTokenPrice(address[3] calldata tokens, uint[3] calldata prices)
+    public
+    view
+    returns (int)
+  {
+    bytes32 salt = genPerpMarketSalt(tokens[0], tokens[1], tokens[2]);
+    IPerpMarket.MarketProps memory mprops = IPerpMarket.MarketProps({
+      marketToken: getPerpMarket(salt),
+      indexToken: tokens[0],
+      longToken: tokens[1],
+      shortToken: tokens[2]
+    });
+    IPerpMarket.PriceProps memory indexPrice =
+      IPerpMarket.PriceProps({min: prices[0], max: prices[0]});
+    IPerpMarket.PriceProps memory longPrice =
+      IPerpMarket.PriceProps({min: prices[1], max: prices[1]});
+    IPerpMarket.PriceProps memory shortPrice =
+      IPerpMarket.PriceProps({min: prices[2], max: prices[2]});
+    (int mtPrice,) = perpReader.getMarketTokenPrice(
+      perpDataStore, mprops, indexPrice, longPrice, shortPrice, MAX_PNL_FACTOR_FOR_TRADERS, true
+    );
+    return mtPrice;
   }
 
   function perpDepositCallback(bytes32, PerpMarket memory market, uint) external {
@@ -141,6 +167,7 @@ contract Fund is Auth, Initializable {
     address market = pmarket.market;
     perpMarketsAmount[market][pmarket.long] -= amount0;
     perpMarketsAmount[market][pmarket.short] -= amount1;
+    delete perpWithdraws[key];
   }
 
   function perpCancelWithdrawCallback(bytes32 key) external {
@@ -174,23 +201,23 @@ contract Fund is Auth, Initializable {
 
     key = perpExRouter.createDeposit(params);
 
-    bytes memory call0 = abi.encodeWithSignature(
-      "sendTokens(address,address,uint256)", long, perpDepositVault, longAmount
-    );
-    bytes memory call1 = abi.encodeWithSignature(
-      "sendTokens(address,address,uint256)", short, perpDepositVault, shortAmount
-    );
-    bytes memory call2 = abi.encodeWithSignature(
-      "createDeposit((address,address,address,address,address,address,address[],address[],uint256,bool,uint256,uint256))",
-      params
-    );
-    bytes[] memory calls = new bytes[](3);
-    calls[0] = call0;
-    calls[1] = call1;
-    calls[2] = call2;
+    // bytes memory call0 = abi.encodeWithSignature(
+    //   "sendTokens(address,address,uint256)", long, perpDepositVault, longAmount
+    // );
+    // bytes memory call1 = abi.encodeWithSignature(
+    //   "sendTokens(address,address,uint256)", short, perpDepositVault, shortAmount
+    // );
+    // bytes memory call2 = abi.encodeWithSignature(
+    //   "createDeposit((address,address,address,address,address,address,address[],address[],uint256,bool,uint256,uint256))",
+    //   params
+    // );
+    // bytes[] memory calls = new bytes[](3);
+    // calls[0] = call0;
+    // calls[1] = call1;
+    // calls[2] = call2;
 
-    bytes[] memory r = perpExRouter.multicall{value: execFee}(calls);
-    return bytes32(r[2]);
+    // bytes[] memory r = perpExRouter.multicall{value: execFee}(calls);
+    // return bytes32(r[2]);
   }
 
   function perpWithdraw(
@@ -228,6 +255,7 @@ contract Fund is Auth, Initializable {
   function perpOrder(BaseOrderUtils.CreateOrderParams calldata params)
     external
     payable
+    auth
     returns (bytes32)
   {
     return perpExRouter.createOrder{value: params.numbers.executionFee}(params);
@@ -239,11 +267,11 @@ contract Fund is Auth, Initializable {
     uint acceptablePrice,
     uint triggerPrice,
     uint minOutputAmount
-  ) external payable {
+  ) external payable auth {
     perpExRouter.updateOrder(key, sizeDeltaUsd, acceptablePrice, triggerPrice, minOutputAmount);
   }
 
-  function perpCancelOrder(bytes32 key) external payable {
+  function perpCancelOrder(bytes32 key) external auth {
     perpExRouter.cancelOrder(key);
   }
 
@@ -293,7 +321,7 @@ contract Fund is Auth, Initializable {
     return nftIds;
   }
 
-  function swapMintLiquidity(ISwapNFTManager.MintParams calldata params)
+  function swapDeposit(ISwapNFTManager.MintParams calldata params)
     external
     payable
     auth
@@ -431,7 +459,7 @@ contract Fund is Auth, Initializable {
     }
   }
 
-  function lendSupply(address asset, uint amount) external auth {
+  function lendDeposit(address asset, uint amount) external auth {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
     ILendPool(lendAddressProvider.getPool()).supply(asset, amount, address(this), 0);
   }

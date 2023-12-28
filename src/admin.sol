@@ -5,9 +5,9 @@
 pragma solidity ^0.8.20;
 
 import {Auth} from "./auth.sol";
-import {DSProxy, DSProxyCache} from "ds-proxy/proxy.sol";
+import {Proxy} from "@openzeppelin/contracts/proxy/Proxy.sol";
 
-interface SetterLick {
+interface SetterLike {
   function file(bytes32, address) external;
   function file(bytes32, uint) external;
   function file(bytes32, bytes32, uint) external;
@@ -19,45 +19,47 @@ interface SetterLick {
 
 contract GovActions {
   function rely(address target, address who) external {
-    SetterLick(target).rely(who);
+    SetterLike(target).rely(who);
   }
 
   function deny(address target, address who) external {
-    SetterLick(target).deny(who);
+    SetterLike(target).deny(who);
   }
 
   function file(address target, bytes32 what, address data) external {
-    SetterLick(target).file(what, data);
+    SetterLike(target).file(what, data);
   }
 
   function file(address target, bytes32 what, uint data) external {
-    SetterLick(target).file(what, data);
+    SetterLike(target).file(what, data);
   }
 
   function file(address target, bytes32 who, bytes32 what, uint data) external {
-    SetterLick(target).file(what, who, data);
+    SetterLike(target).file(what, who, data);
   }
 
   function file(address target, bytes32 who, bytes32 what, address data) external {
-    SetterLick(target).file(what, who, data);
+    SetterLike(target).file(what, who, data);
+  }
+
+  function init(address target, bytes32 who) external {
+    SetterLike(target).init(who);
   }
 }
 
-contract Admin is Auth {
-  DSProxy public proxy;
+contract Admin is Auth, Proxy {
   GovActions public govActons;
 
-  constructor(address _proxy) {
-    proxy = DSProxy(payable(_proxy));
+  constructor() {
     govActons = new GovActions();
   }
 
-  function _exec(bytes memory data) internal auth {
-    proxy.execute(address(govActons), data);
+  function _implementation() internal view override returns (address) {
+    return address(govActons);
   }
 
-  fallback() external payable {
-    _exec(msg.data);
+  function _fallback() internal override auth {
+    super._fallback();
   }
 
   receive() external payable {}

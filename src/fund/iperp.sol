@@ -106,18 +106,51 @@ interface IPerpExRouter {
 }
 
 interface IPerpMarket {
-  struct Props {
+  struct MarketProps {
     address marketToken;
     address indexToken;
     address longToken;
     address shortToken;
   }
+
+  struct PriceProps {
+    uint min;
+    uint max;
+  }
+
+  struct MarketValueProps {
+    int poolValue;
+    int longPnl;
+    int shortPnl;
+    int netPnl;
+    uint longTokenAmount;
+    uint shortTokenAmount;
+    uint longTokenUsd;
+    uint shortTokenUsd;
+    uint totalBorrowingFees;
+    uint borrowingFeePoolFactor;
+    uint impactPoolAmount;
+  }
+
 }
 
 interface IPerpReader is IPerpMarket {
-  function getMarketBySalt(address dataStore, bytes32 salt) external view returns (Props memory);
+  function getMarketBySalt(address dataStore, bytes32 salt)
+    external
+    view
+    returns (MarketProps memory);
   function getMarkets(address dataStore, uint start, uint end)
     external
     view
-    returns (Props[] memory);
+    returns (MarketProps[] memory);
+
+  function getMarketTokenPrice(
+    address dataStore,
+    MarketProps memory market,
+    PriceProps memory indexTokenPrice,
+    PriceProps memory longTokenPrice,
+    PriceProps memory shortTokenPrice,
+    bytes32 pnlFactorType,
+    bool maximize
+  ) external view returns (int, MarketValueProps memory);
 }
