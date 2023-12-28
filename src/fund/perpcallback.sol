@@ -4,10 +4,10 @@
 //
 pragma solidity ^0.8.20;
 
-import "./Deposit.sol";
-import "./Withdrawal.sol";
-import "./Order.sol";
-import "./EventUtils.sol";
+import "./lib/Deposit.sol";
+import "./lib/Withdrawal.sol";
+import "./lib/Order.sol";
+import "./lib/EventUtils.sol";
 
 interface IFund {
   struct PerpMarket {

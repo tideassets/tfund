@@ -4,7 +4,7 @@
 //
 pragma solidity ^0.8.20;
 
-import "./lib/BaseOrderUtils.sol";
+import "../lib/BaseOrderUtils.sol";
 
 interface IPerpExRouter {
   struct CreateDepositParams {
