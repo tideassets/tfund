@@ -131,10 +131,10 @@ interface IPerpMarket {
     uint borrowingFeePoolFactor;
     uint impactPoolAmount;
   }
-
 }
 
 interface IPerpReader is IPerpMarket {
+  function getMarket(address dataStore, address key) external view returns (MarketProps memory);
   function getMarketBySalt(address dataStore, bytes32 salt)
     external
     view

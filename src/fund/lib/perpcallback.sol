@@ -16,6 +16,8 @@ interface IFund {
     address short;
     uint longAmount;
     uint shortAmount;
+    int marketPrice;
+    int profit;
   }
 
   function perpDepositCallback(bytes32 key, PerpMarket memory market, uint amount) external;
@@ -41,7 +43,9 @@ contract PerpCallback {
       long: deposit.addresses.initialLongToken,
       short: deposit.addresses.initialShortToken,
       longAmount: deposit.numbers.initialLongTokenAmount,
-      shortAmount: deposit.numbers.initialShortTokenAmount
+      shortAmount: deposit.numbers.initialShortTokenAmount,
+      marketPrice: 0,
+      profit: 0
     });
     IFund(fund).perpDepositCallback(key, market, eventData.uintItems.items[0].value);
   }

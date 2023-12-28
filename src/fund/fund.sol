@@ -5,15 +5,23 @@
 pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "src/auth.sol";
 import {IPerpExRouter, IPerpReader, IPerpMarket, BaseOrderUtils} from "src/fund/iperp.sol";
 import {ISwapMasterChef, ISwapNFTManager} from "src/fund/iswap.sol";
 import {ILendPool, ILendAddressProvider, ILendDataProvider, IAToken} from "src/fund/ilend.sol";
 import {PerpCallback} from "./lib/perpcallback.sol";
+import {SwapLiquidity} from "./lib/SwapLiquidity.sol";
 
-contract Fund is Auth, Initializable {
+interface OracleLike {
+  function latestRoundData()
+    external
+    view
+    returns (uint80 roundId, int answer, uint startedAt, uint updatedAt, uint80 answeredInRound);
+}
+
+contract Fund is Auth, Initializable, ERC20 {
   using SafeERC20 for IERC20;
 
   struct InitAddresses {
@@ -39,6 +47,9 @@ contract Fund is Auth, Initializable {
   mapping(address => mapping(address => uint)) public vaultDeposits;
   mapping(address => address) public vaultDaos;
   mapping(address => uint) assetsDeposit;
+  mapping(address => uint) usrAveragePrices;
+  mapping(address => bool) assWhitelist;
+  address[] public assList;
 
   uint[] public nftIds;
   mapping(uint => uint) public nftIdsIndex;
@@ -50,15 +61,23 @@ contract Fund is Auth, Initializable {
     address short;
     uint longAmount;
     uint shortAmount;
+    int marketPrice;
+    int profit;
   }
 
   address[] public perpMarketList;
   mapping(address => uint) public perpMarketsIndex;
   mapping(address => PerpMarket) public perpMarkets;
-  mapping(address => mapping(address => uint)) public perpMarketsAmount;
-  mapping(bytes32 => PerpMarket) public perpWithdraws;
   bytes32 public constant MAX_PNL_FACTOR_FOR_TRADERS =
     keccak256(abi.encode("MAX_PNL_FACTOR_FOR_TRADERS"));
+
+  mapping(address => OracleLike) public oracles;
+
+  uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10; // because oracle price precision is 1e8, we use 1e18
+  uint constant SHRINK_PERP_PRICE_PRECISION = 1e12; // because perp price precision is 1e30, we use 1e18
+  uint constant ONE = 1e18;
+
+  constructor() ERC20("Fund", "FUND") {}
 
   function initialize(InitAddresses calldata addrs) external initializer {
     perpExRouter = IPerpExRouter(addrs.perpExRouter);
@@ -75,21 +94,91 @@ contract Fund is Auth, Initializable {
     lendAddressProvider = ILendAddressProvider(addrs.lendAddressProvider);
   }
 
-  function setDao(address vault, address dao) external auth {
-    vaultDaos[vault] = dao;
+  function file(bytes32 what, address data) external auth {
+    if (what == "perpRouter") {
+      perpRouter = data;
+    } else if (what == "perpDepositVault") {
+      perpDepositVault = data;
+    } else if (what == "perpCallback") {
+      perpCallback = data;
+    } else if (what == "perpDataStore") {
+      perpDataStore = data;
+    } else if (what == "perpExRouter") {
+      perpExRouter = IPerpExRouter(data);
+    } else if (what == "perpReader") {
+      perpReader = IPerpReader(data);
+    } else if (what == "swapMasterChef") {
+      swapMasterChef = ISwapMasterChef(data);
+    } else if (what == "swapNFTManager") {
+      swapNFTManager = ISwapNFTManager(data);
+    } else if (what == "lendAddressProvider") {
+      lendAddressProvider = ILendAddressProvider(data);
+    } else {
+      revert("Fund/file-unrecognized-param");
+    }
   }
 
-  function deposit(address asset, uint amount) external {
+  function file(bytes32 what, address who, bool data) external auth {
+    if (what == "asset") {
+      bool old = assWhitelist[who];
+      if (data != old) {
+        assWhitelist[who] = data;
+        if (data) {
+          assList.push(who);
+        } else {
+          for (uint i = 0; i < assList.length; ++i) {
+            if (assList[i] == who) {
+              assList[i] = assList[assList.length - 1];
+              assList.pop();
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      revert("Fund/file-unrecognized-param");
+    }
+  }
+
+  function file(bytes32 what, address who, address data) external auth {
+    if (what == "dao") {
+      vaultDaos[who] = data;
+    } else if (what == "oracal") {
+      oracles[who] = OracleLike(data);
+    } else {
+      revert("Fund/file-unrecognized-param");
+    }
+  }
+
+  function assPrice(address asset) public view returns (int) {
+    OracleLike o = oracles[asset];
+    require(address(o) != address(0), "Fund/invalid oracle");
+    (, int lasstAnswer,,,) = o.latestRoundData();
+    return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
+  }
+
+  function deposit(address asset, uint amount) external returns (uint) {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-    vaultDeposits[msg.sender][asset] += amount;
-    assetsDeposit[asset] += amount;
+    // vaultDeposits[msg.sender][asset] += amount;
+    // assetsDeposit[asset] += amount;
+    int ap = assPrice(asset);
+    uint m = amount * uint(ap) / uint(price());
+    _mint(msg.sender, m);
   }
 
   function withdraw(address asset, uint amount) external {
-    require(vaultDeposits[msg.sender][asset] >= amount, "Fund/insufficient-balance");
+    // require(vaultDeposits[msg.sender][asset] >= amount, "Fund/insufficient-balance");
+    int ap = assPrice(asset);
+    uint m = amount * uint(ap) / uint(price());
+    require(balanceOf(msg.sender) >= m, "Fund/insufficient-balance");
+    _burn(msg.sender, m);
     IERC20(asset).safeTransfer(msg.sender, amount);
-    vaultDeposits[msg.sender][asset] -= amount;
-    assetsDeposit[asset] -= amount;
+    // vaultDeposits[msg.sender][asset] -= amount;
+    // assetsDeposit[asset] -= amount;
+  }
+
+  function price() public view returns (int) {
+    return int(ONE);
   }
 
   function _claimProfit(address asset) internal {
@@ -125,7 +214,11 @@ contract Fund is Auth, Initializable {
     return market.marketToken;
   }
 
-  function getPerpMarketTokenPrice(address[3] calldata tokens, uint[3] calldata prices)
+  function getPerpMarket(address market) public view returns (IPerpMarket.MarketProps memory) {
+    return perpReader.getMarket(perpDataStore, market);
+  }
+
+  function getPerpMarketTokenPrice(address[3] memory tokens, uint[3] memory prices)
     public
     view
     returns (int)
@@ -146,33 +239,51 @@ contract Fund is Auth, Initializable {
     (int mtPrice,) = perpReader.getMarketTokenPrice(
       perpDataStore, mprops, indexPrice, longPrice, shortPrice, MAX_PNL_FACTOR_FOR_TRADERS, true
     );
-    return mtPrice;
+    return mtPrice / int(SHRINK_PERP_PRICE_PRECISION);
   }
 
-  function perpDepositCallback(bytes32, PerpMarket memory market, uint) external {
-    perpMarketsAmount[market.market][market.long] += market.longAmount;
-    perpMarketsAmount[market.market][market.short] += market.shortAmount;
+  function perpDepositCallback(bytes32, PerpMarket memory market, uint) external auth {
     if (perpMarketsIndex[market.market] == 0) {
       perpMarketList.push(market.market);
       perpMarketsIndex[market.market] = perpMarketList.length;
-      perpMarkets[market.market] = market;
     }
+
+    PerpMarket storage m = perpMarkets[market.market];
+    market.longAmount += m.longAmount;
+    market.shortAmount += m.shortAmount;
+    perpMarkets[market.market] = market;
+    perpUpdateProfit(market.market);
   }
 
-  function perpCancelDepositCallback(bytes32 key) external {}
-
-  function perpWithdrawCallback(bytes32 key, uint amount0, uint amount1) external {
-    PerpMarket memory pmarket = perpWithdraws[key];
-    require(pmarket.market != address(0), "Fund/invalid withdraw key");
-    address market = pmarket.market;
-    perpMarketsAmount[market][pmarket.long] -= amount0;
-    perpMarketsAmount[market][pmarket.short] -= amount1;
-    delete perpWithdraws[key];
+  function perpUpdateProfit(address market) public {
+    PerpMarket storage m = perpMarkets[market];
+    IPerpMarket.MarketProps memory mprops = getPerpMarket(market);
+    address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
+    int[3] memory prices =
+      [assPrice(mprops.indexToken), assPrice(mprops.longToken), assPrice(mprops.shortToken)];
+    uint[3] memory perpPrices =
+      [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
+    m.marketPrice = int(getPerpMarketTokenPrice(tokens, perpPrices));
+    uint bal = IERC20(market).balanceOf(address(this));
+    m.profit =
+      m.marketPrice * int(bal) - (int(m.longAmount) * prices[1] + int(m.shortAmount) * prices[2]);
   }
 
-  function perpCancelWithdrawCallback(bytes32 key) external {
-    delete perpWithdraws[key];
+  function toPerpPrice(int price_) public pure returns (uint) {
+    return uint(price_) * SHRINK_PERP_PRICE_PRECISION;
   }
+
+  function perpCancelDepositCallback(bytes32 key) external auth {}
+
+  function perpWithdrawCallback(bytes32, address market, uint amount0, uint amount1) external auth {
+    require(market != address(0), "Fund/invalid withdraw key");
+    PerpMarket storage pmarket = perpMarkets[market];
+    pmarket.longAmount -= amount0;
+    pmarket.shortAmount -= amount1;
+    perpUpdateProfit(market);
+  }
+
+  function perpCancelWithdrawCallback(bytes32 key) external auth {}
 
   function perpDeposit(
     address market,
@@ -220,14 +331,12 @@ contract Fund is Auth, Initializable {
     // return bytes32(r[2]);
   }
 
-  function perpWithdraw(
-    address market,
-    address long,
-    address short,
-    uint longAmount,
-    uint shortAmount,
-    uint execFee
-  ) external payable auth returns (bytes32 key) {
+  function perpWithdraw(address market, uint longAmount, uint shortAmount, uint execFee)
+    external
+    payable
+    auth
+    returns (bytes32 key)
+  {
     IPerpExRouter.CreateWithdrawalParams memory params = IPerpExRouter.CreateWithdrawalParams({
       receiver: address(this),
       callbackContract: perpCallback,
@@ -243,13 +352,6 @@ contract Fund is Auth, Initializable {
     });
 
     key = perpExRouter.createWithdrawal{value: execFee}(params);
-    perpWithdraws[key] = PerpMarket({
-      market: market,
-      long: long,
-      short: short,
-      longAmount: longAmount,
-      shortAmount: shortAmount
-    });
   }
 
   function perpOrder(BaseOrderUtils.CreateOrderParams calldata params)
@@ -313,6 +415,23 @@ contract Fund is Auth, Initializable {
 
   function perpProfit(address) public pure returns (uint) {
     return 0;
+  }
+
+  function perpValue() public view returns (uint) {
+    uint v = 0;
+    uint len = perpMarketList.length;
+    for (uint i = 0; i < len; ++i) {
+      address mt = perpMarketList[i];
+      IPerpMarket.MarketProps memory mprops = getPerpMarket(mt);
+      address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
+      int[3] memory prices =
+        [assPrice(mprops.indexToken), assPrice(mprops.longToken), assPrice(mprops.shortToken)];
+      uint[3] memory perpPrices =
+        [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
+      int mtPrice = getPerpMarketTokenPrice(tokens, perpPrices);
+      v += uint(mtPrice) * IERC20(mt).balanceOf(address(this)) / ONE;
+    }
+    return v;
   }
 
   function _perpClaim(address) internal pure {}
@@ -425,6 +544,46 @@ contract Fund is Auth, Initializable {
     return bal;
   }
 
+  // function swapValue() public view returns (uint) {
+  //   uint v = 0;
+  //   uint asslen = assList.length;
+  //   for (uint i = 0; i < asslen; ++i) {
+  //     address ass = assList[i];
+  //     uint bal = swapBalance(ass) + swapProfit(ass);
+  //     v += uint(assPrice(ass)) * bal;
+  //   }
+  //   return v;
+  // }
+
+  function swapValue() public view returns (uint) {
+    uint v = 0;
+    uint idsLen = nftIds.length;
+    for (uint i = 0; i < idsLen; ++i) {
+      uint id = nftIds[i];
+      (
+        ,
+        ,
+        address t0,
+        address t1,
+        ,
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidity,
+        ,
+        ,
+        uint128 tokensOwned0,
+        uint128 tokensOwned1
+      ) = swapPositionis(id);
+      (,,,,,,, uint pid,) = swapMasterChef.userPositionInfos(id);
+      (, address pool,,,,,) = swapMasterChef.poolInfo(pid);
+      (int amount0, int amount1) =
+        SwapLiquidity.swapLiquidity(pool, int128(liquidity), tickLower, tickUpper);
+      v += uint(assPrice(t0)) * (uint(amount0) + tokensOwned0);
+      v += uint(assPrice(t1)) * (uint(amount1) + tokensOwned1);
+    }
+    return v;
+  }
+
   function swapProfit(address asset) public view returns (uint) {
     uint len = nftIds.length;
     uint bal = 0;
@@ -485,5 +644,15 @@ contract Fund is Auth, Initializable {
   function _lendClaim(address asset) internal {
     uint profit = lendProfit(asset);
     ILendPool(lendAddressProvider.getPool()).withdraw(asset, profit, address(this));
+  }
+
+  function lendValue() public view returns (uint) {
+    uint v = 0;
+    uint asslen = assList.length;
+    for (uint i = 0; i < asslen; ++i) {
+      address ass = assList[i];
+      v += uint(assPrice(ass)) * lendBalance(ass);
+    }
+    return v;
   }
 }

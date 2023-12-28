@@ -12,6 +12,8 @@ import {Auth} from "./auth.sol";
 interface FundLike {
   function deposit(address ass, uint amt) external;
   function withdraw(address ass, uint amt) external;
+  function balanceOf(address) external;
+  function price() external returns (int);
   function balanceOf(address usr, address ass) external view returns (uint);
   function profitOf(address usr, address ass) external view returns (uint);
 }
@@ -52,7 +54,7 @@ contract Vault is Auth, Initializable {
 
   uint constant ONE = 1e18;
   // oracal price precision is 1e8, we use 1e18, so must expend 1e10
-  uint constant EXPEND_ORACAL_PRICE_PRECISION = 1e10;
+  uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10;
 
   function initialize(address core_) public initializer {
     core = TTokenLike(core_);
@@ -64,13 +66,13 @@ contract Vault is Auth, Initializable {
       return int(ONE);
     }
     (, int lasstAnswer,,,) = OracleLike(coreOracle).latestRoundData();
-    return lasstAnswer * int(EXPEND_ORACAL_PRICE_PRECISION);
+    return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
   }
 
   function assPrice(bytes32 name) public view returns (int) {
     OracleLike o = OracleLike(asss[name].oracle);
     (, int lasstAnswer,,,) = o.latestRoundData();
-    return lasstAnswer * int(EXPEND_ORACAL_PRICE_PRECISION);
+    return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
   }
 
   function assLen() public view returns (uint) {

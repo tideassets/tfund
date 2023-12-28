@@ -47,6 +47,50 @@ interface ISwapMasterChef {
       uint128 tokensOwed1
     );
 
+  //     uint128 liquidity;
+  // uint128 boostLiquidity;
+  // int24 tickLower;
+  // int24 tickUpper;
+  // uint256 rewardGrowthInside;
+  // uint256 reward;
+  // address user;
+  // uint256 pid;
+  // uint256 boostMultiplier;
+
+  function userPositionInfos(uint tokenId)
+    external
+    view
+    returns (
+      uint128 liquidity,
+      uint128 boostLiquidity,
+      int24 tickLower,
+      int24 tickUpper,
+      uint rewardGrowthInside,
+      uint reward,
+      address user,
+      uint pid,
+      uint boostMultiplier
+    );
+
+  function poolInfo(uint pid)
+    external
+    view
+    returns (
+      uint allocPoint,
+      // V3 pool address
+      address v3Pool,
+      // V3 pool token0 address
+      address token0,
+      // V3 pool token1 address
+      address token1,
+      // V3 pool fee
+      uint24 fee,
+      // total liquidity staking in the pool
+      uint totalLiquidity,
+      // total boost liquidity staking in the pool
+      uint totalBoostLiquidity
+    );
+
   function increaseLiquidity(IncreaseLiquidityParams calldata params)
     external
     payable
