@@ -5,6 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 
 interface IA {
   function foo(address a) external;
+  function b() external view returns (address);
 }
 
 interface IB {
@@ -18,8 +19,14 @@ contract B {
 }
 
 contract A {
-  function foo(IB b) external {
-    b.foo(address(this));
+  IB public b;
+
+  constructor() {
+    b = IB(address(new B()));
+  }
+
+  function foo(IB b_) external {
+    b_.foo(address(this));
   }
 }
 
@@ -27,6 +34,9 @@ contract TestInterface is Test {
   function test() public {
     A a = new A();
     B b = new B();
-    IA(address(a)).foo(address(b));
+    IA ia = IA(address(a));
+    ia.foo(address(b));
+    console2.log("b.b", ia.b());
+    IB(ia.b()).foo(address(ia));
   }
 }

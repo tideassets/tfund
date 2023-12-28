@@ -44,7 +44,7 @@ contract Fund is Auth, Initializable, ERC20 {
   ISwapNFTManager public swapNFTManager;
   ILendAddressProvider public lendAddressProvider;
 
-  mapping(address => uint) usrAveragePrices;
+  mapping(address => int) usrAveragePrices;
   mapping(address => bool) assWhitelist;
   address[] public assList;
 
@@ -122,7 +122,16 @@ contract Fund is Auth, Initializable, ERC20 {
     }
   }
 
-  function file(bytes32 what, address who, bool data) external auth {
+  function init(address[] calldata assets, address[] calldata oracles_) external auth {
+    require(assets.length == oracles_.length, "Fund/invalid length");
+    for (uint i = 0; i < assets.length; ++i) {
+      assWhitelist[assets[i]] = true;
+      oracles[assets[i]] = OracleLike(oracles_[i]);
+      assList.push(assets[i]);
+    }
+  }
+
+  function file(bytes32 what, address who, bool data) public auth {
     if (what == "asset") {
       bool old = assWhitelist[who];
       if (data != old) {
@@ -144,7 +153,7 @@ contract Fund is Auth, Initializable, ERC20 {
     }
   }
 
-  function file(bytes32 what, address who, address data) external auth {
+  function file(bytes32 what, address who, address data) public auth {
     if (what == "oracal") {
       oracles[who] = OracleLike(data);
     } else {
@@ -162,16 +171,28 @@ contract Fund is Auth, Initializable, ERC20 {
   function deposit(address asset, uint amount) external returns (uint) {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
     int ap = assPrice(asset);
-    uint m = amount * uint(ap) / uint(price());
+    int p = price();
+    uint m = amount * uint(ap) / uint(p);
+    uint bal = balanceOf(msg.sender);
+    int avp = usrAveragePrices[msg.sender];
     _mint(msg.sender, m);
+    usrAveragePrices[msg.sender] = (avp * int(bal) + int(m) * p) / int(balanceOf(msg.sender));
     return m;
   }
 
   function withdraw(address asset, uint amount) external {
     int ap = assPrice(asset);
-    uint m = amount * uint(ap) / uint(price());
+    int p = price();
+    uint m = amount * uint(ap) / uint(p);
     require(balanceOf(msg.sender) >= m, "Fund/insufficient-balance");
+    uint bal = balanceOf(msg.sender);
+    int avp = usrAveragePrices[msg.sender];
     _burn(msg.sender, m);
+    if (balanceOf(msg.sender) == 0) {
+      usrAveragePrices[msg.sender] = 0;
+    } else {
+      usrAveragePrices[msg.sender] = (avp * int(bal) - int(m) * p) / int(balanceOf(msg.sender));
+    }
     IERC20(asset).safeTransfer(msg.sender, amount);
   }
 
