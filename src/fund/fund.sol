@@ -62,7 +62,6 @@ contract Fund is Auth, Initializable, ERC20 {
   }
 
   address[] public perpMarketList;
-  mapping(address => uint) public perpMarketsIndex;
   mapping(address => PerpMarket) public perpMarkets;
   bytes32 public constant MAX_PNL_FACTOR_FOR_TRADERS =
     keccak256(abi.encode("MAX_PNL_FACTOR_FOR_TRADERS"));
@@ -257,12 +256,10 @@ contract Fund is Auth, Initializable, ERC20 {
   }
 
   function perpDepositCallback(bytes32, PerpMarket memory market, uint) external auth {
-    if (perpMarketsIndex[market.market] == 0) {
-      perpMarketList.push(market.market);
-      perpMarketsIndex[market.market] = perpMarketList.length;
-    }
-
     PerpMarket storage m = perpMarkets[market.market];
+    if (m.market == address(0)) {
+      perpMarketList.push(market.market);
+    }
     market.longAmount += m.longAmount;
     market.shortAmount += m.shortAmount;
     perpMarkets[market.market] = market;

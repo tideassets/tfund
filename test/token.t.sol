@@ -17,26 +17,26 @@ contract TTokenTest is Test {
     assertEq(tToken.decimals(), expected, "Decimals must be 18");
   }
 
-  // Test the whitelist function
-  function testWhitelist() public {
-    tToken.setWhitelist(address(this), true);
-    bool isWhitelisted = tToken.whitelist(address(this));
-    assertEq(isWhitelisted, true, "Address should be whitelisted");
-  }
+  // // Test the whitelist function
+  // function testWhitelist() public {
+  //   // tToken.setWhitelist(address(this), true);
+  //   bool isWhitelisted = tToken.whitelist(address(this));
+  //   assertEq(isWhitelisted, true, "Address should be whitelisted");
+  // }
 
-  // Test the chainIdToOutboundCap function
-  function testChainIdToOutboundCap() public {
-    uint expectedCap = 1000;
-    tToken.setOutboundCap(1, expectedCap);
-    uint cap = tToken.chainIdToOutboundCap(1);
-    assertEq(cap, expectedCap, "Outbound cap for chainId 1 should be 1000");
-  }
+  // // Test the chainIdToOutboundCap function
+  // function testChainIdToOutboundCap() public {
+  //   uint expectedCap = 1000;
+  //   tToken.setOutboundCap(1, expectedCap);
+  //   uint cap = tToken.chainIdToOutboundCap(1);
+  //   assertEq(cap, expectedCap, "Outbound cap for chainId 1 should be 1000");
+  // }
 
-  // Test the chainIdToInboundCap function
-  function testChainIdToInboundCap() public {
-    uint expectedCap = 1000;
-    tToken.setInboundCap(1, expectedCap);
-    uint cap = tToken.chainIdToInboundCap(1);
-    assertEq(cap, expectedCap, "Inbound cap for chainId 1 should be 1000");
-  }
+  // // Test the chainIdToInboundCap function
+  // function testChainIdToInboundCap() public {
+  //   uint expectedCap = 1000;
+  //   tToken.setInboundCap(1, expectedCap);
+  //   uint cap = tToken.chainIdToInboundCap(1);
+  //   assertEq(cap, expectedCap, "Inbound cap for chainId 1 should be 1000");
+  // }
 }

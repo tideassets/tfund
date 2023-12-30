@@ -10,12 +10,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Auth} from "./auth.sol";
 
 interface FundLike {
-  function deposit(address ass, uint amt) external;
-  function withdraw(address ass, uint amt) external;
-  function balanceOf(address) external;
-  function price() external returns (int);
-  function balanceOf(address usr, address ass) external view returns (uint);
-  function profitOf(address usr, address ass) external view returns (uint);
+  function deposit(address ass, uint amt) external returns (uint);
+  function withdraw(address ass, uint amt) external returns (uint);
+  function balanceOf(address) external view returns (uint);
+  function price() external view returns (int);
 }
 
 interface OracleLike {
@@ -25,7 +23,7 @@ interface OracleLike {
     returns (uint80 roundId, int answer, uint startedAt, uint updatedAt, uint80 answeredInRound);
 }
 
-interface TTokenLike {
+interface CoreLike is IERC20 {
   function mint(address account, uint amt) external;
   function burn(address account, uint amt) external;
 }
@@ -36,28 +34,34 @@ contract Vault is Auth, Initializable {
   struct Ass {
     uint min; // min persent
     uint max; // max persent
-    uint out; // out persent
-    // uint amt;
+    uint out; // fund persent
+    uint inv; // fund amount
     address gem; // asset address
     address oracle; // price oracle
-    address fund;
   }
 
-  mapping(bytes32 name => Ass) public asss;
+  struct Inv {
+    uint max; // max persent
+    uint amt; // amount
+  }
+
   bytes32[] public assList;
   mapping(bytes32 name => uint index) assIndexs;
+  mapping(bytes32 name => Ass) public asss;
 
-  TTokenLike public core; // TDT, TCAv1, TCAv2
+  FundLike fund;
+  CoreLike public core; // TDT, TCAv1, TCAv2
   OracleLike public coreOracle; // oracle for core
   bool public inited = false;
   uint public excfee; // Fee charged for the part that exceeds the purchase or sale
+  uint public totalSupply;
 
   uint constant ONE = 1e18;
   // oracal price precision is 1e8, we use 1e18, so must expend 1e10
   uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10;
 
   function initialize(address core_) public initializer {
-    core = TTokenLike(core_);
+    core = CoreLike(core_);
     excfee = ONE / 10;
   }
 
@@ -83,16 +87,10 @@ contract Vault is Auth, Initializable {
     excfee = fee_;
   }
 
-  function init(
-    bytes32 who,
-    uint min,
-    uint max,
-    uint out,
-    address gem,
-    address oracle,
-    address fund
-  ) external auth {
-    asss[who] = Ass(min, max, out, gem, oracle, fund);
+  function init(bytes32[] calldata names, Ass[] calldata assets) external auth {
+    for (uint i = 0; i < names.length; ++i) {
+      asss[names[i]] = assets[i];
+    }
   }
 
   function _file(bytes32 who, bool rm) internal {
@@ -122,9 +120,9 @@ contract Vault is Auth, Initializable {
     } else if (what == "min") {
       asss[who].min = data;
     } else if (what == "out") {
-      asss[who].out = data;
-    } else if (what == "amt") {
-      // asss[who].amt = data;
+      asss[who].max = data;
+    } else if (what == "inv") {
+      asss[who].max = data;
     } else {
       revert("Vault/file-unrecognized-param");
     }
@@ -135,8 +133,6 @@ contract Vault is Auth, Initializable {
       asss[who].gem = data;
     } else if (what == "oracle") {
       asss[who].oracle = data;
-    } else if (what == "fund") {
-      asss[who].fund = data;
     } else {
       revert("Vault/file-unrecognized-param");
     }
@@ -147,6 +143,8 @@ contract Vault is Auth, Initializable {
     require(data != address(0), "Vault/file-address-is-zero");
     if (what == "Oracle") {
       coreOracle = OracleLike(data);
+    } else if (what == "Fund") {
+      fund = FundLike(data);
     } else {
       revert("Vault/file-unrecognized-param");
     }
@@ -160,45 +158,43 @@ contract Vault is Auth, Initializable {
     }
   }
 
-  function assetOut(bytes32 name) public view returns (uint) {
-    Ass memory ass = asss[name];
-    if (ass.fund == address(0) || ass.out == 0) {
-      return 0;
-    }
-    FundLike fund = FundLike(ass.fund);
-    uint amt = fund.balanceOf(address(this), ass.gem);
-    uint fee = fund.profitOf(address(this), ass.gem);
-    return amt + fee;
-  }
-
   function assetAmount(bytes32 name) public view returns (uint) {
     Ass memory ass = asss[name];
     IERC20 token = IERC20(ass.gem);
-    uint balance = token.balanceOf(address(this));
-    balance = balance + assetOut(name);
-    return balance;
+    return token.balanceOf(address(this)) + ass.inv;
   }
 
   function assetValue(bytes32 name) public view returns (uint) {
     uint balance = assetAmount(name);
-    uint value = uint(assPrice(name)) * balance / ONE;
+    uint value = uint(assPrice(name)) * balance;
     return value;
   }
 
   function totalValue() public view returns (uint) {
     uint total = 0;
-    for (uint i = 1; i < assList.length; i++) {
-      total += assetValue(assList[i]);
+    uint len = assList.length;
+    for (uint i = 1; i < len; i++) {
+      bytes32 name = assList[i];
+      Ass memory ass = asss[name];
+      uint bal = IERC20(ass.gem).balanceOf(address(this));
+      total += uint(assPrice(name)) * bal;
+    }
+    if (address(fund) != address(0)) {
+      total += uint(fund.price()) * fund.balanceOf(address(this));
     }
     return total;
   }
 
+  function price() public view returns (int) {
+    return int(totalValue() / core.totalSupply());
+  }
+
   function _calcuPersent(bytes32 name, int amt) internal view returns (uint) {
     int total = int(totalValue());
-    int assVal = int(assetValue(name));
-    int dval = (assPrice(name) * amt) / int(ONE);
-    total += dval;
     require(total > 0, "Vault/ass amount error");
+    int assVal = int(assetValue(name));
+    int dval = (assPrice(name) * amt);
+    total += dval;
     assVal += dval;
     if (assVal < 0) {
       assVal = 0;
@@ -210,25 +206,32 @@ contract Vault is Auth, Initializable {
     return _calcuPersent(name, 0);
   }
 
-  function calcuOut(bytes32 name) public view returns (uint) {
+  function maxFundDeposit(bytes32 name) public view returns (uint) {
     Ass memory ass = asss[name];
-    uint amt = assetAmount(name);
-    uint out = assetOut(name);
-    return amt * ass.out / ONE - out;
-  }
-
-  function deposit(bytes32 name, uint amt) external auth {
-    Ass memory ass = asss[name];
-    uint max = calcuOut(name);
-    require(amt <= max, "Vault/amt error");
     IERC20 token = IERC20(ass.gem);
-    token.forceApprove(ass.fund, amt);
-    FundLike(ass.fund).deposit(ass.gem, amt);
+    uint total = token.balanceOf(address(this)) + ass.inv;
+    return total * ONE / ass.out;
   }
 
-  function withdraw(bytes32 name, uint amt) external auth {
-    Ass memory ass = asss[name];
-    FundLike(ass.fund).withdraw(ass.gem, amt);
+  function fundDeposit(bytes32 name, uint amt) external auth {
+    require(address(fund) != address(0), "Vault/fund is zero");
+    require(amt <= maxFundDeposit(name), "Vault/invilid deposit amount");
+    Ass storage ass = asss[name];
+    IERC20 token = IERC20(ass.gem);
+    token.forceApprove(address(fund), amt);
+    uint d = fund.deposit(ass.gem, amt);
+    ass.inv += d;
+  }
+
+  function fundWithdraw(bytes32 name, uint amt) external auth {
+    require(address(fund) != address(0), "Vault/fund is zero");
+    Ass storage ass = asss[name];
+    uint w = fund.withdraw(ass.gem, amt);
+    if (w > ass.inv) {
+      ass.inv = 0;
+    } else {
+      ass.inv = 0;
+    }
   }
 
   function buyFee(bytes32 name, uint amt) public view returns (uint) {

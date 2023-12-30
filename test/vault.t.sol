@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {Vault, OracleLike, TTokenLike, Auth, IERC20} from "../src/vault.sol";
+import {Vault, OracleLike, CoreLike, Auth, IERC20} from "src/vault.sol";
 import {TToken, ERC20} from "../src/token.sol";
 
 contract MockOracle is OracleLike {

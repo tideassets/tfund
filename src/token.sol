@@ -88,27 +88,27 @@ abstract contract OFTWithFee is BaseOFTWithFee, ERC20Permit {
 // clone from pancake CakeOFT contract
 contract TToken is OFTWithFee, Auth {
   // Outbound cap
-  mapping(uint16 => uint) public chainIdToOutboundCap;
-  mapping(uint16 => uint) public chainIdToSentTokenAmount;
-  mapping(uint16 => uint) public chainIdToLastSentTimestamp;
+  // mapping(uint16 => uint) public chainIdToOutboundCap;
+  // mapping(uint16 => uint) public chainIdToSentTokenAmount;
+  // mapping(uint16 => uint) public chainIdToLastSentTimestamp;
 
-  // Inbound cap
-  mapping(uint16 => uint) public chainIdToInboundCap;
-  mapping(uint16 => uint) public chainIdToReceivedTokenAmount;
-  mapping(uint16 => uint) public chainIdToLastReceivedTimestamp;
+  // // Inbound cap
+  // mapping(uint16 => uint) public chainIdToInboundCap;
+  // mapping(uint16 => uint) public chainIdToReceivedTokenAmount;
+  // mapping(uint16 => uint) public chainIdToLastReceivedTimestamp;
 
-  // If an address is whitelisted, the inbound/outbound cap checks are skipped
-  mapping(address => bool) public whitelist;
+  // // If an address is whitelisted, the inbound/outbound cap checks are skipped
+  // mapping(address => bool) public whitelist;
 
-  error ExceedOutboundCap(uint cap, uint amount);
-  error ExceedInboundCap(uint cap, uint amount);
+  // error ExceedOutboundCap(uint cap, uint amount);
+  // error ExceedInboundCap(uint cap, uint amount);
 
-  event SetOperator(address newOperator);
-  event SetOutboundCap(uint16 indexed chainId, uint cap);
-  event SetInboundCap(uint16 indexed chainId, uint cap);
-  event SetWhitelist(address indexed addr, bool isWhitelist);
-  event FallbackWithdraw(address indexed to, uint amount);
-  event DropFailedMessage(uint16 srcChainId, bytes srcAddress, uint64 nonce);
+  // event SetOperator(address newOperator);
+  // event SetOutboundCap(uint16 indexed chainId, uint cap);
+  // event SetInboundCap(uint16 indexed chainId, uint cap);
+  // event SetWhitelist(address indexed addr, bool isWhitelist);
+  // event FallbackWithdraw(address indexed to, uint amount);
+  // event DropFailedMessage(uint16 srcChainId, bytes srcAddress, uint64 nonce);
 
   constructor(address _lzEndpoint, string memory _name, string memory _symbol)
     OFTWithFee(_name, _symbol, 8, _lzEndpoint)
@@ -127,76 +127,76 @@ contract TToken is OFTWithFee, Auth {
   {
     uint amount = super._debitFrom(_from, _dstChainId, _toAddress, _amount);
 
-    if (whitelist[_from]) {
-      return amount;
-    }
+  //   // if (whitelist[_from]) {
+  //   //   return amount;
+  //   // }
 
-    uint sentTokenAmount;
-    uint lastSentTimestamp = chainIdToLastSentTimestamp[_dstChainId];
-    uint currTimestamp = block.timestamp;
-    if ((currTimestamp / (1 days)) > (lastSentTimestamp / (1 days))) {
-      sentTokenAmount = amount;
-    } else {
-      sentTokenAmount = chainIdToSentTokenAmount[_dstChainId] + amount;
-    }
+  //   // uint sentTokenAmount;
+  //   // uint lastSentTimestamp = chainIdToLastSentTimestamp[_dstChainId];
+  //   // uint currTimestamp = block.timestamp;
+  //   // if ((currTimestamp / (1 days)) > (lastSentTimestamp / (1 days))) {
+  //   //   sentTokenAmount = amount;
+  //   // } else {
+  //   //   sentTokenAmount = chainIdToSentTokenAmount[_dstChainId] + amount;
+  //   // }
 
-    uint outboundCap = chainIdToOutboundCap[_dstChainId];
-    if (sentTokenAmount > outboundCap) {
-      revert ExceedOutboundCap(outboundCap, sentTokenAmount);
-    }
+  //   // uint outboundCap = chainIdToOutboundCap[_dstChainId];
+  //   // if (sentTokenAmount > outboundCap) {
+  //   //   revert ExceedOutboundCap(outboundCap, sentTokenAmount);
+  //   // }
 
-    chainIdToSentTokenAmount[_dstChainId] = sentTokenAmount;
-    chainIdToLastSentTimestamp[_dstChainId] = currTimestamp;
+  //   // chainIdToSentTokenAmount[_dstChainId] = sentTokenAmount;
+  //   // chainIdToLastSentTimestamp[_dstChainId] = currTimestamp;
+
+  //   return amount;
+  // }
+
+  // function _creditTo(uint16 _srcChainId, address _toAddress, uint _amount)
+  //   internal
+  //   override
+  //   whenNotPaused
+  //   returns (uint)
+  // {
+  //   uint amount = super._creditTo(_srcChainId, _toAddress, _amount);
+
+  //   if (whitelist[_toAddress]) {
+  //     return amount;
+  //   }
+
+  //   uint receivedTokenAmount;
+  //   uint lastReceivedTimestamp = chainIdToLastReceivedTimestamp[_srcChainId];
+  //   uint currTimestamp = block.timestamp;
+  //   if ((currTimestamp / (1 days)) > (lastReceivedTimestamp / (1 days))) {
+  //     receivedTokenAmount = amount;
+  //   } else {
+  //     receivedTokenAmount = chainIdToReceivedTokenAmount[_srcChainId] + amount;
+  //   }
+
+  //   uint inboundCap = chainIdToInboundCap[_srcChainId];
+  //   if (receivedTokenAmount > inboundCap) {
+  //     revert ExceedInboundCap(inboundCap, receivedTokenAmount);
+  //   }
+
+  //   chainIdToReceivedTokenAmount[_srcChainId] = receivedTokenAmount;
+  //   chainIdToLastReceivedTimestamp[_srcChainId] = currTimestamp;
 
     return amount;
   }
 
-  function _creditTo(uint16 _srcChainId, address _toAddress, uint _amount)
-    internal
-    override
-    whenNotPaused
-    returns (uint)
-  {
-    uint amount = super._creditTo(_srcChainId, _toAddress, _amount);
+  // function setOutboundCap(uint16 chainId, uint cap) external auth {
+  //   chainIdToOutboundCap[chainId] = cap;
+  //   emit SetOutboundCap(chainId, cap);
+  // }
 
-    if (whitelist[_toAddress]) {
-      return amount;
-    }
+  // function setInboundCap(uint16 chainId, uint cap) external auth {
+  //   chainIdToInboundCap[chainId] = cap;
+  //   emit SetInboundCap(chainId, cap);
+  // }
 
-    uint receivedTokenAmount;
-    uint lastReceivedTimestamp = chainIdToLastReceivedTimestamp[_srcChainId];
-    uint currTimestamp = block.timestamp;
-    if ((currTimestamp / (1 days)) > (lastReceivedTimestamp / (1 days))) {
-      receivedTokenAmount = amount;
-    } else {
-      receivedTokenAmount = chainIdToReceivedTokenAmount[_srcChainId] + amount;
-    }
-
-    uint inboundCap = chainIdToInboundCap[_srcChainId];
-    if (receivedTokenAmount > inboundCap) {
-      revert ExceedInboundCap(inboundCap, receivedTokenAmount);
-    }
-
-    chainIdToReceivedTokenAmount[_srcChainId] = receivedTokenAmount;
-    chainIdToLastReceivedTimestamp[_srcChainId] = currTimestamp;
-
-    return amount;
-  }
-
-  function setOutboundCap(uint16 chainId, uint cap) external auth {
-    chainIdToOutboundCap[chainId] = cap;
-    emit SetOutboundCap(chainId, cap);
-  }
-
-  function setInboundCap(uint16 chainId, uint cap) external auth {
-    chainIdToInboundCap[chainId] = cap;
-    emit SetInboundCap(chainId, cap);
-  }
-
-  function setWhitelist(address addr, bool isWhitelist) external auth {
-    whitelist[addr] = isWhitelist;
-    emit SetWhitelist(addr, isWhitelist);
-  }
+  // function setWhitelist(address addr, bool isWhitelist) external auth {
+  //   whitelist[addr] = isWhitelist;
+  //   emit SetWhitelist(addr, isWhitelist);
+  // }
 
   function mint(address to, uint amount) external auth {
     _mint(to, amount);
