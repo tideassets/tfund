@@ -214,7 +214,7 @@ contract Fund is Auth, Initializable, ERC20 {
     return v;
   }
 
-  function genPerpMarketSalt(address index, address long, address short)
+  function perpGenMarketSalt(address index, address long, address short)
     public
     pure
     returns (bytes32 salt)
@@ -222,23 +222,23 @@ contract Fund is Auth, Initializable, ERC20 {
     salt = keccak256(abi.encode("GMX_MARKET", index, long, short, "base-v1"));
   }
 
-  function getPerpMarket(bytes32 salt) public view returns (address) {
+  function perpGetMarket(bytes32 salt) public view returns (address) {
     IPerpMarket.MarketProps memory market = perpReader.getMarketBySalt(perpDataStore, salt);
     return market.marketToken;
   }
 
-  function getPerpMarket(address market) public view returns (IPerpMarket.MarketProps memory) {
+  function perpGetMarket(address market) public view returns (IPerpMarket.MarketProps memory) {
     return perpReader.getMarket(perpDataStore, market);
   }
 
-  function getPerpMarketTokenPrice(address[3] memory tokens, uint[3] memory prices)
+  function perpGetMarketTokenPrice(address[3] memory tokens, uint[3] memory prices)
     public
     view
     returns (int)
   {
-    bytes32 salt = genPerpMarketSalt(tokens[0], tokens[1], tokens[2]);
+    bytes32 salt = perpGenMarketSalt(tokens[0], tokens[1], tokens[2]);
     IPerpMarket.MarketProps memory mprops = IPerpMarket.MarketProps({
-      marketToken: getPerpMarket(salt),
+      marketToken: perpGetMarket(salt),
       indexToken: tokens[0],
       longToken: tokens[1],
       shortToken: tokens[2]
@@ -268,13 +268,13 @@ contract Fund is Auth, Initializable, ERC20 {
 
   function perpUpdateProfit(address market) public {
     PerpMarket storage m = perpMarkets[market];
-    IPerpMarket.MarketProps memory mprops = getPerpMarket(market);
+    IPerpMarket.MarketProps memory mprops = perpGetMarket(market);
     address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
     int[3] memory prices =
       [assPrice(mprops.indexToken), assPrice(mprops.longToken), assPrice(mprops.shortToken)];
     uint[3] memory perpPrices =
       [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
-    m.marketPrice = int(getPerpMarketTokenPrice(tokens, perpPrices));
+    m.marketPrice = int(perpGetMarketTokenPrice(tokens, perpPrices));
     uint bal = IERC20(market).balanceOf(address(this));
     m.profit =
       m.marketPrice * int(bal) - (int(m.longAmount) * prices[1] + int(m.shortAmount) * prices[2]);
@@ -397,13 +397,13 @@ contract Fund is Auth, Initializable, ERC20 {
     uint len = perpMarketList.length;
     for (uint i = 0; i < len; ++i) {
       address mt = perpMarketList[i];
-      IPerpMarket.MarketProps memory mprops = getPerpMarket(mt);
+      IPerpMarket.MarketProps memory mprops = perpGetMarket(mt);
       address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
       int[3] memory prices =
         [assPrice(mprops.indexToken), assPrice(mprops.longToken), assPrice(mprops.shortToken)];
       uint[3] memory perpPrices =
         [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
-      int mtPrice = getPerpMarketTokenPrice(tokens, perpPrices);
+      int mtPrice = perpGetMarketTokenPrice(tokens, perpPrices);
       v += uint(mtPrice) * IERC20(mt).balanceOf(address(this));
     }
     return v;

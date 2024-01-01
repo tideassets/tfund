@@ -54,7 +54,6 @@ contract Vault is Auth, Initializable {
   OracleLike public coreOracle; // oracle for core
   bool public inited = false;
   uint public excfee; // Fee charged for the part that exceeds the purchase or sale
-  uint public totalSupply;
 
   uint constant ONE = 1e18;
   // oracal price precision is 1e8, we use 1e18, so must expend 1e10
