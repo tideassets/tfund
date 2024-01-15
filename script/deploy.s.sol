@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Script, console2} from "forge-std/Script.sol";
+import {TransparentUpgradeableProxy} from
+  "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TToken} from "src/token.sol";
 import {Vault} from "src/vault.sol";
 import {Locker} from "src/lock.sol";
@@ -11,6 +13,7 @@ import {EsToken} from "src/estoken.sol";
 import {Stakex} from "src/stake.sol";
 import {Dao} from "src/dao.sol";
 import {IOU20} from "src/iou.sol";
+import {Registry} from "src/reg.sol";
 
 // 1. 创建6种代币: TDT, sTCA, vTCA, tsStable, TTL, TTS, TTP.
 // 2. 创建3个 Vault: TDT Vault, sTCA Vault, vTCA Vault
@@ -28,151 +31,267 @@ import {IOU20} from "src/iou.sol";
 //    - VeToken: rely on owner, should set token
 
 contract DeployScript is Script {
+  Registry registry;
   address endpoint;
-  TToken TDT;
-  TToken sTCA;
-  TToken vTCA;
-  TToken TTL;
-  TToken TTS;
-  TToken TTP;
+  address deployer;
+  uint chainId;
 
-  Vault tdtVault;
-  Vault sTCAVault;
-  Vault vTCAVault;
-
-  Locker TTLLocker;
-  Locker TTSLocker;
-  Locker TTPLocker;
-
-  VeToken veTDT;
-  VeToken veTTL;
-  VeToken veTTS;
-  VeToken veTTP;
-
-  EsToken esTDT;
-  EsToken esTTL;
-  EsToken esTTS;
-  EsToken esTTP;
-
-  Dao dao;
-  Dao teamDao;
-  Dao tsaDao;
-  Dao lpFund;
-
-  Stakex tdtStk;
-  Stakex ttlStk;
-  Stakex ttsStk;
-  Stakex ttpStk;
-
-  RewarderCycle tdtRewarderCycle;
-  RewarderCycle ttlRewarderCycle;
-  RewarderCycle ttsRewarderCycle;
-  RewarderCycle ttpRewarderCycle;
-
-  RewarderAccum tdtRewarderAccum;
-  RewarderAccum ttlRewarderAccum;
-  RewarderAccum ttsRewarderAccum;
-  RewarderAccum ttpRewarderAccum;
+  function _setUpRegistry() internal {
+    registry = new Registry();
+  }
 
   function _setUpTokens() internal {
-    TDT = new TToken(endpoint, "TDT token", "TDT");
-    sTCA = new TToken(endpoint, "sTCA token", "sTCA");
-    vTCA = new TToken(endpoint, "vTCA token", "vTCA");
-    TTL = new TToken(endpoint, "TTL token", "TTL");
-    TTS = new TToken(endpoint, "TTS token", "TTS");
-    TTP = new TToken(endpoint, "TTP token", "TTP");
+    TToken TDT = new TToken(endpoint, "TDT token", "TDT");
+    TToken sTCA = new TToken(endpoint, "sTCA token", "sTCA");
+    TToken vTCA = new TToken(endpoint, "vTCA token", "vTCA");
+    TToken TTL = new TToken(endpoint, "TTL token", "TTL");
+    TToken TTS = new TToken(endpoint, "TTS token", "TTS");
+    TToken TTP = new TToken(endpoint, "TTP token", "TTP");
+
+    registry.file(registry.TDT(), address(TDT));
+    registry.file(registry.TCAs(), address(sTCA));
+    registry.file(registry.TCAv(), address(vTCA));
+    registry.file(registry.TTL(), address(TTL));
+    registry.file(registry.TTS(), address(TTS));
+    registry.file(registry.TTP(), address(TTP));
   }
 
   function _setUpVaults() internal {
-    tdtVault = new Vault();
-    tdtVault.initialize(address(TDT));
-    sTCAVault = new Vault();
-    sTCAVault.initialize(address(sTCA));
-    vTCAVault = new Vault();
-    vTCAVault.initialize(address(vTCA));
+    TransparentUpgradeableProxy tdtProxy = new TransparentUpgradeableProxy(
+      address(new Vault()), 
+      deployer, 
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TDT()))
+    );
+    TransparentUpgradeableProxy sTCAProxy = new TransparentUpgradeableProxy(
+      address(new Vault()),
+      deployer,
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TCAs()))
+    );
+    TransparentUpgradeableProxy vTCAProxy = new TransparentUpgradeableProxy(
+      address(new Vault()),
+      deployer,
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TCAv()))
+    );
+
+    registry.file(registry.TDT_VAULT(), address(tdtProxy));
+    registry.file(registry.TCAS_VAULT(), address(sTCAProxy));
+    registry.file(registry.TCAV_VAULT(), address(vTCAProxy));
   }
 
   function _setUpDaos() internal {
-    dao = new Dao();
-    teamDao = new Dao();
-    tsaDao = new Dao();
-    lpFund = new Dao();
+    Dao dao = new Dao();
+    Dao teamDao = new Dao();
+    Dao tsaDao = new Dao();
+    Dao lpFund = new Dao();
+
+    registry.file(registry.DAO(), address(dao));
+    registry.file(registry.TEAM_DAO(), address(teamDao));
+    registry.file(registry.TSA_DAO(), address(tsaDao));
+    registry.file(registry.LP_DAO(), address(lpFund));
   }
 
   function _setUpLockers() internal {
-    TTLLocker =
-      new Locker(address(TTL), address(dao), address(tsaDao), address(teamDao), address(lpFund));
-    TTSLocker =
-      new Locker(address(TTS), address(dao), address(tsaDao), address(teamDao), address(lpFund));
-    TTPLocker =
-      new Locker(address(TTP), address(dao), address(tsaDao), address(teamDao), address(lpFund));
+    address ttl = registry.addresses(registry.TTL());
+    address tts = registry.addresses(registry.TTS());
+    address ttp = registry.addresses(registry.TTP());
+    address dao = registry.addresses(registry.DAO());
+    address teamDao = registry.addresses(registry.TEAM_DAO());
+    address tsaDao = registry.addresses(registry.TSA_DAO());
+    address lpDao = registry.addresses(registry.LP_DAO());
+
+    Locker TTLLocker = new Locker(ttl, dao, tsaDao, teamDao, lpDao);
+    Locker TTSLocker = new Locker(tts, dao, tsaDao, teamDao, lpDao);
+    Locker TTPLocker = new Locker(ttp, dao, tsaDao, teamDao, lpDao);
+
+    registry.file(registry.TTL_LOKER(), address(TTLLocker));
+    registry.file(registry.TTS_LOCK(), address(TTSLocker));
+    registry.file(registry.TTP_LOKER(), address(TTPLocker));
   }
 
   function _setUpVeTokens() internal {
-    veTDT = new VeToken();
-    veTDT.initialize(address(TDT), "TDT veToken", "veTDT");
-    veTTL = new VeToken();
-    veTTL.initialize(address(TTL), "TTL veToken", "veTTL");
-    veTTS = new VeToken();
-    veTTS.initialize(address(TTS), "TTS veToken", "veTTS");
-    veTTP = new VeToken();
-    veTTP.initialize(address(TTP), "TTP veToken", "veTTP");
+    TransparentUpgradeableProxy veTDTProxy = new TransparentUpgradeableProxy(
+      address(new VeToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TDT()), "TDT veToken", "veTDT")
+    );
+    TransparentUpgradeableProxy veTTLProxy = new TransparentUpgradeableProxy(
+      address(new VeToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TTL()), "TTL veToken", "veTTL")
+    );
+    TransparentUpgradeableProxy veTTSProxy = new TransparentUpgradeableProxy(
+      address(new VeToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TTS()), "TTS veToken", "veTTS")
+    );
+    TransparentUpgradeableProxy veTTPProxy = new TransparentUpgradeableProxy(
+      address(new VeToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TTP()), "TTP veToken", "veTTP")
+    );
+
+    registry.file(registry.VETDT(), address(veTDTProxy));
+    registry.file(registry.VETTL(), address(veTTLProxy));
+    registry.file(registry.VETTS(), address(veTTSProxy));
+    registry.file(registry.VETTP(), address(veTTPProxy));
   }
 
   function _setUpEsTokens() internal {
-    esTDT = new EsToken();
-    esTDT.initialize(address(TDT), "TDT esToken", "esTDT");
-    esTTL = new EsToken();
-    esTTL.initialize(address(TTL), "TTL esToken", "esTTL");
-    esTTS = new EsToken();
-    esTTS.initialize(address(TTS), "TTS esToken", "esTTS");
-    esTTP = new EsToken();
-    esTTP.initialize(address(TTP), "TTP esToken", "esTTP");
+    TransparentUpgradeableProxy esTTLProxy = new TransparentUpgradeableProxy(
+      address(new EsToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TTL()), "TTL esToken", "esTTL")
+    );
+    TransparentUpgradeableProxy esTTSProxy = new TransparentUpgradeableProxy(
+      address(new EsToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TTS()), "TTS esToken", "esTTS")
+    );
+    TransparentUpgradeableProxy esTTPProxy = new TransparentUpgradeableProxy(
+      address(new EsToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TTP()), "TTP esToken", "esTTP")
+    );
+    TransparentUpgradeableProxy esTDTProxy = new TransparentUpgradeableProxy(
+      address(new EsToken()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,string,string)", registry.addresses(registry.TDT()), "TDT esToken", "esTDT")
+    );
+
+    registry.file(registry.ESTDT(), address(esTDTProxy));
+    registry.file(registry.ESTTL(), address(esTTLProxy));
+    registry.file(registry.ESTTS(), address(esTTSProxy));
+    registry.file(registry.ESTTP(), address(esTTPProxy));
   }
 
   function _setUpStakexs() internal {
-    tdtStk = new Stakex();
-    ttlStk = new Stakex();
-    ttsStk = new Stakex();
-    ttpStk = new Stakex();
+    TransparentUpgradeableProxy tdtStkProxy = new TransparentUpgradeableProxy(
+      address(new Stakex()),
+      deployer,
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TDT()))
+    );
+    TransparentUpgradeableProxy ttlStkProxy = new TransparentUpgradeableProxy(
+      address(new Stakex()),
+      deployer,
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TDT()))
+    );
+    TransparentUpgradeableProxy ttsStkProxy = new TransparentUpgradeableProxy(
+      address(new Stakex()),
+      deployer,
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TDT()))
+    );
+    TransparentUpgradeableProxy ttpStkProxy = new TransparentUpgradeableProxy(
+      address(new Stakex()),
+      deployer,
+      abi.encodeWithSignature("initialize(address)", registry.addresses(registry.TDT()))
+    );
 
-    tdtStk.initialize(address(TDT));
-    ttlStk.initialize(address(TTL));
-    ttsStk.initialize(address(TTS));
-    ttpStk.initialize(address(TTP));
+    registry.file(registry.TDT_STAKER(), address(tdtStkProxy));
+    registry.file(registry.TTL_STAKER(), address(ttlStkProxy));
+    registry.file(registry.TTS_STAKER(), address(ttsStkProxy));
+    registry.file(registry.TTP_STAKER(), address(ttpStkProxy));
   }
 
   function _setUpRewarders() internal {
-    tdtRewarderCycle = new RewarderCycle();
-    tdtRewarderCycle.initialize(address(TDT), address(tdtStk), address(tsaDao));
-    ttlRewarderCycle = new RewarderCycle();
-    ttlRewarderCycle.initialize(address(TTL), address(ttlStk), address(tsaDao));
-    ttsRewarderCycle = new RewarderCycle();
-    ttsRewarderCycle.initialize(address(TTS), address(ttsStk), address(tsaDao));
-    ttpRewarderCycle = new RewarderCycle();
-    ttpRewarderCycle.initialize(address(TTP), address(ttpStk), address(tsaDao));
+    address tdt = registry.addresses(registry.TDT());
+    address ttl = registry.addresses(registry.TTL());
+    address tts = registry.addresses(registry.TTS());
+    address ttp = registry.addresses(registry.TTP());
+    address tdtStk = registry.addresses(registry.TDT_STAKER());
+    address ttlStk = registry.addresses(registry.TTL_STAKER());
+    address ttsStk = registry.addresses(registry.TTS_STAKER());
+    address ttpStk = registry.addresses(registry.TTP_STAKER());
+    address tsaDao = registry.addresses(registry.TSA_DAO());
 
-    tdtRewarderAccum = new RewarderAccum();
-    tdtRewarderAccum.initialize(address(TDT), address(tdtStk), address(tsaDao));
-    ttlRewarderAccum = new RewarderAccum();
-    ttlRewarderAccum.initialize(address(TTL), address(ttlStk), address(tsaDao));
-    ttsRewarderAccum = new RewarderAccum();
-    ttsRewarderAccum.initialize(address(TTS), address(ttsStk), address(tsaDao));
-    ttpRewarderAccum = new RewarderAccum();
-    ttpRewarderAccum.initialize(address(TTP), address(ttpStk), address(tsaDao));
+    TransparentUpgradeableProxy tdtRewarderCycleProxy = new TransparentUpgradeableProxy(
+      address(new RewarderCycle()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", tdt, tdtStk, tsaDao)
+    );
+    TransparentUpgradeableProxy ttlRewarderCycleProxy = new TransparentUpgradeableProxy(
+      address(new RewarderCycle()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", ttl, ttlStk, tsaDao)
+    );
+    TransparentUpgradeableProxy ttsRewarderCycleProxy = new TransparentUpgradeableProxy(
+      address(new RewarderCycle()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", tts, ttsStk, tsaDao)
+    );
+    TransparentUpgradeableProxy ttpRewarderCycleProxy = new TransparentUpgradeableProxy(
+      address(new RewarderCycle()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", ttp, ttpStk, tsaDao)
+    );
+    TransparentUpgradeableProxy tdtRewarderAccumProxy = new TransparentUpgradeableProxy(
+      address(new RewarderAccum()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", tdt, tdtStk, tsaDao)
+    );
+    TransparentUpgradeableProxy ttlRewarderAccumProxy = new TransparentUpgradeableProxy(
+      address(new RewarderAccum()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", ttl, ttlStk, tsaDao)
+    );
+    TransparentUpgradeableProxy ttsRewarderAccumProxy = new TransparentUpgradeableProxy(
+      address(new RewarderAccum()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", tts, ttsStk, tsaDao)
+    );
+    TransparentUpgradeableProxy ttpRewarderAccumProxy = new TransparentUpgradeableProxy(
+      address(new RewarderAccum()),
+      deployer,
+      abi.encodeWithSignature("initialize(address,address,address)", ttp, ttpStk, tsaDao)
+    );
+
+    registry.file(registry.TDT_CYCLE_REWARDER(), address(tdtRewarderCycleProxy));
+    registry.file(registry.TTL_CYCLE_REWARDER(), address(ttlRewarderCycleProxy));
+    registry.file(registry.TTS_CYCLE_REWARDER(), address(ttsRewarderCycleProxy));
+    registry.file(registry.TTP_CYCLE_REWARDER(), address(ttpRewarderCycleProxy));
+    registry.file(registry.TDT_ACCUM_REWARDER(), address(tdtRewarderAccumProxy));
+    registry.file(registry.TTL_ACCUM_REWARDER(), address(ttlRewarderAccumProxy));
+    registry.file(registry.TTS_ACCUM_REWARDER(), address(ttsRewarderAccumProxy));
+    registry.file(registry.TTP_ACCUM_REWARDER(), address(ttpRewarderAccumProxy));
   }
 
   function _setUpAuth() internal {
-    TDT.rely(address(tdtVault));
-    sTCA.rely(address(sTCAVault));
-    vTCA.rely(address(vTCAVault));
+    address tdt = registry.addresses(registry.TDT());
+    address ttl = registry.addresses(registry.TTL());
+    address tts = registry.addresses(registry.TTS());
+    address ttp = registry.addresses(registry.TTP());
+    address sTCA = registry.addresses(registry.TCAs());
+    address vTCA = registry.addresses(registry.TCAv());
+    address tdtVault = registry.addresses(registry.TDT_VAULT());
+    address sTCAVault = registry.addresses(registry.TCAS_VAULT());
+    address vTCAVault = registry.addresses(registry.TCAV_VAULT());
+    address TTLLocker = registry.addresses(registry.TTL_LOKER());
+    address TTSLocker = registry.addresses(registry.TTS_LOCK());
+    address TTPLocker = registry.addresses(registry.TTP_LOKER());
 
-    TTL.rely(address(TTLLocker));
-    TTS.rely(address(TTSLocker));
-    TTP.rely(address(TTPLocker));
+    TToken(tdt).rely(tdtVault);
+    TToken(sTCA).rely(sTCAVault);
+    TToken(vTCA).rely(vTCAVault);
+
+    TToken(ttl).rely(TTLLocker);
+    TToken(tts).rely(TTSLocker);
+    TToken(ttp).rely(TTPLocker);
   }
 
   function _setUpParams() internal {
+    address esTDT = registry.addresses(registry.ESTDT());
+    address esTTL = registry.addresses(registry.ESTTL());
+    address esTTS = registry.addresses(registry.ESTTS());
+    address esTTP = registry.addresses(registry.ESTTP());
+
+    RewarderAccum tdtRewarderAccum =
+      RewarderAccum(registry.addresses(registry.TDT_ACCUM_REWARDER()));
+    RewarderAccum ttlRewarderAccum =
+      RewarderAccum(registry.addresses(registry.TTL_ACCUM_REWARDER()));
+    RewarderAccum ttsRewarderAccum =
+      RewarderAccum(registry.addresses(registry.TTS_ACCUM_REWARDER()));
+    RewarderAccum ttpRewarderAccum =
+      RewarderAccum(registry.addresses(registry.TTP_ACCUM_REWARDER()));
+
     tdtRewarderAccum.setEstoken(address(esTDT));
     ttlRewarderAccum.setEstoken(address(esTTL));
     ttsRewarderAccum.setEstoken(address(esTTS));
@@ -184,7 +303,7 @@ contract DeployScript is Script {
     ttpRewarderAccum.setPSR(1 ether);
   }
 
-  function _setUp() internal {
+  function _run() internal {
     _setUpTokens();
     _setUpVaults();
     _setUpDaos();
@@ -199,13 +318,12 @@ contract DeployScript is Script {
   }
 
   function run() public {
-    address deployer = vm.rememberKey(vm.envUint("PRIVATE_KEY"));
+    deployer = vm.rememberKey(vm.envUint("PRIVATE_KEY"));
     endpoint = vm.envAddress("LAYERZERO_ENDPOINT");
-    uint chainId = vm.envUint("CHAIN_ID");
+    chainId = vm.envUint("CHAIN_ID");
 
     vm.startBroadcast(deployer);
-    _setUp();
-
+    _run();
     vm.stopBroadcast();
   }
 }

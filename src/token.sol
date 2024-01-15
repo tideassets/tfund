@@ -90,10 +90,6 @@ contract TToken is OFTV2, Auth {
     wards[msg.sender] = 1;
   }
 
-  function decimals() public pure override returns (uint8) {
-    return 18;
-  }
-
   function _debitFrom(address _from, uint16 _dstChainId, bytes32 _toAddress, uint _amount)
     internal
     override
