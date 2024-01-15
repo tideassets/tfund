@@ -14,7 +14,7 @@ interface EsTokenLike {
 }
 
 interface StakerLike {
-  // function totalSupply() external view returns (uint);
+  function totalSupply() external view returns (uint);
   function balanceOf(address) external view returns (uint);
   function stkToken() external view returns (IERC20);
 }
@@ -42,24 +42,27 @@ abstract contract RewarderBase is Auth, Initializable {
 
   event Claim(address indexed usr, address recv, uint amount);
 
-  function stake(address usr, uint amt) external onlyStaker whenNotPaused {
-    _stake(usr, amt);
+  function updateBefore(address usr, int amt) external onlyStaker whenNotPaused {
+    _updateBefore(usr, amt);
   }
 
-  function unstake(address usr, uint amt) external onlyStaker whenNotPaused {
-    _unstake(usr, amt);
+  function updateAfter(address usr, int amt) external onlyStaker whenNotPaused {
+    _updateAfter(usr, amt);
   }
 
   function setEstoken(address est) external auth {
     esToken = EsTokenLike(est);
   }
 
-  function _stake(address usr, uint amt) internal virtual;
+  function _updateBefore(address usr, int amt) internal virtual {}
 
-  function _unstake(address usr, uint amt) internal virtual;
+  function _updateAfter(address usr, int amt) internal virtual {}
 
   function claim(address recv) external whenNotPaused {
     uint amount = _claim(msg.sender);
+    if (amount == 0) {
+      return;
+    }
     if (address(esToken) != address(0)) {
       IERC20(rewardToken).safeTransferFrom(rewardValut, address(this), amount);
       IERC20(rewardToken).forceApprove(address(esToken), amount);
@@ -78,8 +81,7 @@ abstract contract RewarderBase is Auth, Initializable {
 }
 
 // Periodic rewards
-// When increasing the stake, you can only increase the stake for the next cycle
-// When reducing the stake, you can only reduce the stake for the current cycle
+// When increasing and reducint the stake, you can only update the stake for the next cycle
 // At the start of a new cycle, set the reward per stake (reward per stake ONE -> osr) for this cycle
 // Because the osr for each cycle is different, when the user claims,
 // the rewards for each cycle need to be calculated separately
@@ -87,10 +89,10 @@ contract RewarderCycle is RewarderBase {
   using SafeERC20 for IERC20;
 
   uint public cycleId;
-  uint public totalStakes;
 
-  // key is cycle id, value is reward per stake one
-  mapping(uint => uint) public osr;
+  // key is cycle id, value is per cycle reward
+  mapping(uint => uint) public pcrs;
+  mapping(uint => uint) public totalStakes;
   // key1 is user, key2 is cycle id,  value is  stake
   mapping(address => mapping(uint => uint)) public us;
   // key is user, value is claimeded cycle id
@@ -100,35 +102,23 @@ contract RewarderCycle is RewarderBase {
 
   uint public constant MIN = 1;
 
-  function _newCycle(uint rps) internal {
+  // pcr: per cycle reward
+  function _newCycle(uint pcr) internal {
+    pcrs[cycleId] = pcr;
     cycleId++;
-    osr[cycleId] = rps; //(ramt * ONE) / totalStakes;
+    totalStakes[cycleId] = staker.totalSupply();
   }
 
-  function newCycle(uint rps) external {
-    _newCycle(rps);
+  function newCycle(uint pcr) external auth {
+    _newCycle(pcr);
   }
 
-  // _stake add stake amount to next cycle
-  function _stake(address usr, uint amt) internal override {
+  function _updateAfter(address usr, int) internal override {
     uint cid = cycleId;
-    uint balance = staker.balanceOf(usr);
+    uint bal = staker.balanceOf(usr);
     mapping(uint => uint) storage us_ = us[usr];
-    us_[cid + 1] = balance + amt;
+    us_[cid + 1] = bal == 0 ? MIN : bal;
     usid[usr] = cid + 1;
-  }
-
-  // _unstake reduce stake amount from current cycle
-  function _unstake(address usr, uint amt) internal override {
-    uint cid = cycleId;
-    uint uid = usid[usr];
-    require(uid <= cid, "RewarderCycle/uid > cid");
-    usid[usr] = cid;
-
-    uint balance = staker.balanceOf(usr);
-    uint n = balance - amt;
-    mapping(uint => uint) storage us_ = us[usr];
-    us_[cid] = n > 0 ? n : MIN;
   }
 
   function claimable(address usr) public view override returns (uint) {
@@ -147,7 +137,7 @@ contract RewarderCycle is RewarderBase {
       if (s == MIN || s == 0) {
         continue;
       }
-      amount += (s * osr[i]) / ONE;
+      amount += (s * pcrs[i]) / totalStakes[i];
     }
     return amount;
   }
@@ -175,21 +165,23 @@ contract RewarderCycle is RewarderBase {
 contract RewarderAccum is RewarderBase {
   using SafeERC20 for IERC20;
 
+  uint public PSR; // per second reward
   uint public OPSR; // ONE token per second reward
 
   mapping(address => uint) public upts; // user update times
   mapping(address => uint) public uaas; // user accumulated amounts: uaas = upts * staker.balanceOf
 
-  function setRPS(uint opsr) external auth {
-    OPSR = opsr;
+  function setPSR(uint psr) external auth {
+    PSR = psr;
   }
 
-  function _stake(address usr, uint) internal override {
+  function _updateBefore(address usr, int) internal override {
     _update(usr);
   }
 
-  function _unstake(address usr, uint) internal override {
-    _update(usr);
+  function _updateAfter(address, int) internal override {
+    uint total = staker.totalSupply();
+    OPSR = total == 0 ? 0 : PSR * ONE / total;
   }
 
   function _update(address usr) internal {

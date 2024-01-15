@@ -12,7 +12,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 interface CallbackLike {
-  function callback(address, address, uint) external;
+  function updateBefore(address, address, uint) external;
+  function updateAfter(address, address, uint) external;
 }
 
 contract IOU20 is ERC20, Ownable {
@@ -40,9 +41,14 @@ contract IOU20 is ERC20, Ownable {
 
   function _update(address from, address to, uint value) internal virtual override {
     if (address(u) != address(0)) {
-      u.callback(from, to, value);
+      u.updateBefore(from, to, value);
     }
+
     super._update(from, to, value);
+
+    if (address(u) != address(0)) {
+      u.updateAfter(from, to, value);
+    }
   }
 }
 

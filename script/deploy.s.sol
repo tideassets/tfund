@@ -178,10 +178,10 @@ contract DeployScript is Script {
     ttsRewarderAccum.setEstoken(address(esTTS));
     ttpRewarderAccum.setEstoken(address(esTTP));
 
-    tdtRewarderAccum.setRPS(1 ether);
-    ttlRewarderAccum.setRPS(1 ether);
-    ttsRewarderAccum.setRPS(1 ether);
-    ttpRewarderAccum.setRPS(1 ether);
+    tdtRewarderAccum.setPSR(1 ether);
+    ttlRewarderAccum.setPSR(1 ether);
+    ttsRewarderAccum.setPSR(1 ether);
+    ttpRewarderAccum.setPSR(1 ether);
   }
 
   function _setUp() internal {

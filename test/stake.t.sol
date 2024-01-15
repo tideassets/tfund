@@ -15,8 +15,8 @@ contract MEsToken is ERC20 {
 }
 
 contract MRewarder is RewarderLike {
-  function stake(address usr, uint amt) external override {}
-  function unstake(address usr, uint amt) external override {}
+  function updateBefore(address usr, int amt) external override {}
+  function updateAfter(address usr, int amt) external override {}
 }
 
 contract StakexTest is Test {

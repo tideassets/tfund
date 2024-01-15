@@ -11,8 +11,8 @@ import {Auth} from "./auth.sol";
 import {IOU20} from "./iou.sol";
 
 interface RewarderLike {
-  function stake(address, uint) external;
-  function unstake(address, uint) external;
+  function updateBefore(address, int) external;
+  function updateAfter(address, int) external;
 }
 
 contract Stakex is Auth, Initializable {
@@ -21,7 +21,7 @@ contract Stakex is Auth, Initializable {
   IERC20 public stkToken;
   IOU20 public iou;
 
-  // rs["TDT-A"] = naddress(ew RewarderCycle())
+  // rs["TDT-A"] = address(ew RewarderCycle())
   mapping(bytes32 => address) public rs;
   bytes32[] public ra;
   mapping(bytes32 => uint) public ri;
@@ -34,6 +34,10 @@ contract Stakex is Auth, Initializable {
 
   function balanceOf(address u) public view returns (uint) {
     return iou.balanceOf(u);
+  }
+
+  function totalSupply() public view returns (uint) {
+    return iou.totalSupply();
   }
 
   function rewarders() external view returns (bytes32[] memory) {
@@ -72,14 +76,6 @@ contract Stakex is Auth, Initializable {
     iou.mint(to, amt);
   }
 
-  function _stake(address to, uint amt) internal {
-    uint len = ra.length;
-    for (uint i = 0; i < len; i++) {
-      address r = rs[ra[i]];
-      RewarderLike(r).stake(to, amt);
-    }
-  }
-
   function unstake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
@@ -88,22 +84,29 @@ contract Stakex is Auth, Initializable {
     stkToken.safeTransfer(to, amt);
   }
 
-  function _unstake(address to, uint amt) internal {
+  function updateBefore(address from, address to, uint amt) external {
     uint len = ra.length;
     for (uint i = 0; i < len; i++) {
       address r = rs[ra[i]];
-      RewarderLike(r).unstake(to, amt);
+      if (from != address(0)) {
+        RewarderLike(r).updateBefore(from, -int(amt));
+      }
+      if (to != address(0)) {
+        RewarderLike(r).updateBefore(to, int(amt));
+      }
     }
   }
 
-  function callback(address from, address to, uint val) external {
-    if (from == address(0)) {
-      _stake(to, val);
-    } else if (to == address(0)) {
-      _unstake(from, val);
-    } else {
-      _unstake(from, val);
-      _stake(to, val);
+  function updateAfter(address from, address to, uint amt) external {
+    uint len = ra.length;
+    for (uint i = 0; i < len; i++) {
+      address r = rs[ra[i]];
+      if (from != address(0)) {
+        RewarderLike(r).updateAfter(from, -int(amt));
+      }
+      if (to != address(0)) {
+        RewarderLike(r).updateAfter(to, int(amt));
+      }
     }
   }
 }

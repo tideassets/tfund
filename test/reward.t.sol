@@ -53,10 +53,10 @@ contract RewarderAccumTest is Test {
     R = new RewarderAccum();
     R.initialize(address(reward), address(staker), address(rewardValut));
     // R.setRPS(RAY * 315360 / 1000000 / (1 days * 365)); // yearly rate
-    R.setRPS(1e9);
+    R.setPSR(1e27);
 
-    reward.mint(address(rewardValut), 1e9 ether);
-    asset.mint(address(this), 1e9 ether);
+    reward.mint(address(rewardValut), 1e27 ether);
+    asset.mint(address(this), 1e27 ether);
 
     rewardValut.doApprove(address(reward), address(R), type(uint).max);
     asset.approve(address(staker), type(uint).max);
@@ -72,11 +72,11 @@ contract RewarderAccumTest is Test {
     staker.stake(address(this), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
     vm.warp(block.timestamp + 1 seconds);
-    assertEq(R.claimable(address(this)), 1e9, "1 second should be same");
+    assertEq(R.claimable(address(this)), 1e27, "1 second should be same");
     vm.warp(block.timestamp + 100 seconds);
-    assertEq(R.claimable(address(this)), 101 * 1e9, "100 second should be same");
+    assertEq(R.claimable(address(this)), 101 * 1e27, "100 second should be same");
     vm.warp(block.timestamp + 100 seconds);
-    assertEq(R.claimable(address(this)), 201 * 1e9, "200 second should be same");
+    assertEq(R.claimable(address(this)), 201 * 1e27, "200 second should be same");
   }
 
   function testClaim() public {
@@ -84,19 +84,19 @@ contract RewarderAccumTest is Test {
     assertEq(staker.balanceOf(address(this)), 1 ether);
 
     vm.warp(block.timestamp + 1 seconds);
-    assertEq(R.claimable(address(this)), 1e9, "assert 1 year");
+    assertEq(R.claimable(address(this)), 1e27, "assert 1 year");
     assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
     R.claim(address(this));
-    assertEq(reward.balanceOf(address(this)), 1e9, "assert 2 should be same");
+    assertEq(reward.balanceOf(address(this)), 1e27, "assert 2 should be same");
 
     vm.warp(block.timestamp + 100 seconds);
-    assertEq(R.claimable(address(this)), 100 * 1e9, "100 second should be same");
+    assertEq(R.claimable(address(this)), 100 * 1e27, "100 second should be same");
     R.claim(address(this));
-    assertEq(reward.balanceOf(address(this)), 101e9, "101 second should be same");
+    assertEq(reward.balanceOf(address(this)), 101e27, "101 second should be same");
     vm.warp(block.timestamp + 100 seconds);
-    assertEq(R.claimable(address(this)), 100 * 1e9, "100 second should be same");
+    assertEq(R.claimable(address(this)), 100 * 1e27, "100 second should be same");
     R.claim(address(this));
-    assertEq(reward.balanceOf(address(this)), 201e9, "201 second should be same");
+    assertEq(reward.balanceOf(address(this)), 201e27, "201 second should be same");
   }
 
   function testUnstake() external {
@@ -128,11 +128,10 @@ contract RewarderCycleTest is Test {
     R = new RewarderCycle();
     R.initialize(address(reward), address(staker), address(rewardValut));
 
-    R.newCycle(1e9);
-    reward.mint(address(rewardValut), 1e9 ether);
+    reward.mint(address(rewardValut), 1e27 ether);
     rewardValut.doApprove(address(reward), address(R), type(uint).max);
 
-    asset.mint(address(this), 1e9 ether);
+    asset.mint(address(this), 1e27 ether);
     asset.approve(address(staker), type(uint).max);
 
     staker.file("TDT", "add", address(R));
@@ -142,10 +141,10 @@ contract RewarderCycleTest is Test {
     staker.stake(address(this), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
     assertEq(R.claimable(address(this)), 0, "before new cycle, should be zero");
-    R.newCycle(1e9);
+    R.newCycle(1e27);
     assertEq(R.claimable(address(this)), 0, "before new cycle, should be zero");
-    R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 1e9, "after new cycle, should NOT be zero");
+    R.newCycle(1e27);
+    assertEq(R.claimable(address(this)), 1e27, "after new cycle, should NOT be zero");
   }
 
   function testStake() public {
@@ -153,84 +152,86 @@ contract RewarderCycleTest is Test {
 
     assertEq(reward.balanceOf(address(this)), 0, "balance should be zero before claim");
     R.claim(address(this));
-    assertEq(R.cycleId(), 3, "cycle id should be 3");
-    assertEq(R.ucid(address(this)), 3, "cycle id should be 3");
+    assertEq(R.cycleId(), 2, "cycle id should be 3");
+    assertEq(R.ucid(address(this)), 2, "cycle id should be 3");
     assertEq(staker.balanceOf(address(this)), 1 ether);
-    assertEq(R.us(address(this), 3), 1 ether, "us should be 1 ether");
-    assertEq(reward.balanceOf(address(this)), 1e9, "balance should be same 1 secon");
+    assertEq(R.us(address(this), 2), 1 ether, "us should be 1 ether");
+    assertEq(reward.balanceOf(address(this)), 1e27, "balance should be same 1 secon");
 
-    R.newCycle(1e9);
-    assertEq(R.cycleId(), 4, "cycle id should be 4");
-    assertEq(R.claimable(address(this)), 1e9, "should be 1e9");
+    R.newCycle(1e27);
+    assertEq(R.cycleId(), 3, "cycle id should be 4");
+    assertEq(R.claimable(address(this)), 1e27, "should be 1e27");
   }
 
   function testClaim() public {
     staker.stake(address(this), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
 
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    R.newCycle(1e9);
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    R.newCycle(1e27);
     staker.stake(address(this), 1 ether);
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 6e9, "should be 6e9");
+    assertEq(staker.balanceOf(address(this)), 2 ether);
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    assertEq(R.claimable(address(this)), 5e27, "should be 6e9");
     uint balance = reward.balanceOf(address(this));
     R.claim(address(this));
-    assertEq(reward.balanceOf(address(this)), balance + 6e9, "balance should be same");
+    assertEq(reward.balanceOf(address(this)), balance + 5e27, "balance should be same");
   }
 
   function testUnstake() external {
     testClaim();
     staker.unstake(address(this), 2 ether);
-    R.newCycle(1e9);
+    R.claim(address(this));
+    R.newCycle(1e27);
     assertEq(R.claimable(address(this)), 0, "claimable should be zero");
     testClaim();
   }
 
   function testTransfer() external {
     staker.stake(address(this), 2 ether);
-    R.newCycle(1e9);
+    R.newCycle(1e27);
     iou.transfer(address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
     assertEq(staker.balanceOf(address(0x123)), 1 ether);
 
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 2e9, "this should be 1e9");
-    assertEq(R.claimable(address(0x123)), 1e9, "123 should be 1e9");
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    assertEq(R.claimable(address(this)), 1.5e27, "this should be 1e27");
+    assertEq(R.claimable(address(0x123)), 0.5e27, "123 should be 1e27");
 
     iou.transfer(address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 0);
     assertEq(staker.balanceOf(address(0x123)), 2 ether);
 
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 2e9, "this should be 1e9");
-    assertEq(R.claimable(address(0x123)), 4e9, "123 should be 3e9");
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    assertEq(R.claimable(address(this)), 2e27, "this should be 1e27");
+    assertEq(R.claimable(address(0x123)), 2e27, "123 should be 3e9");
   }
 
   function testTransferFrom() external {
     staker.stake(address(this), 2 ether);
-    R.newCycle(1e9);
+    R.newCycle(1e27);
     iou.approve(address(this), 1 ether);
     iou.transferFrom(address(this), address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 1 ether);
     assertEq(staker.balanceOf(address(0x123)), 1 ether);
 
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 2e9, "this should be 1e9");
-    assertEq(R.claimable(address(0x123)), 1e9, "123 should be 1e9");
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    assertEq(R.claimable(address(this)), 1.5e27, "this should be 1e27");
+    assertEq(R.claimable(address(0x123)), 0.5e27, "123 should be 1e27");
 
     iou.transfer(address(0x123), 1 ether);
     assertEq(staker.balanceOf(address(this)), 0);
     assertEq(staker.balanceOf(address(0x123)), 2 ether);
 
-    R.newCycle(1e9);
-    R.newCycle(1e9);
-    assertEq(R.claimable(address(this)), 2e9, "this should be 1e9");
-    assertEq(R.claimable(address(0x123)), 4e9, "123 should be 3e9");
+    R.newCycle(1e27);
+    R.newCycle(1e27);
+    assertEq(R.claimable(address(this)), 2e27, "this should be 1e27");
+    assertEq(R.claimable(address(0x123)), 2e27, "123 should be 3e9");
   }
 }
