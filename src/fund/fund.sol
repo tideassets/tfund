@@ -4,8 +4,9 @@
 //
 pragma solidity ^0.8.20;
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "src/auth.sol";
 import {IPerpExRouter, IPerpReader, IPerpMarket, BaseOrderUtils} from "./interface/iperp.sol";
@@ -21,7 +22,7 @@ interface OracleLike {
     returns (uint80 roundId, int answer, uint startedAt, uint updatedAt, uint80 answeredInRound);
 }
 
-contract Fund is Auth, Initializable, ERC20 {
+contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   using SafeERC20 for IERC20;
 
   struct InitAddresses {
@@ -72,7 +73,7 @@ contract Fund is Auth, Initializable, ERC20 {
   uint constant SHRINK_PERP_PRICE_PRECISION = 1e12; // because perp price precision is 1e30, we use 1e18
   uint constant ONE = 1e18;
 
-  constructor() ERC20("Fund", "FUND") {}
+  constructor() ERC20("", "") {}
 
   function initialize(InitAddresses calldata addrs) external initializer {
     rely(msg.sender);
@@ -169,7 +170,7 @@ contract Fund is Auth, Initializable, ERC20 {
     return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
   }
 
-  function deposit(address asset, uint amount) external returns (uint) {
+  function deposit(address asset, uint amount) external nonReentrant returns (uint) {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
     int ap = assPrice(asset);
     int p = price();
@@ -181,7 +182,7 @@ contract Fund is Auth, Initializable, ERC20 {
     return m;
   }
 
-  function withdraw(address asset, uint amount) external {
+  function withdraw(address asset, uint amount) external nonReentrant {
     int ap = assPrice(asset);
     int p = price();
     uint m = amount * uint(ap) / uint(p);
