@@ -14,12 +14,12 @@ abstract contract Auth is Pausable {
     _;
   }
 
-  function rely(address usr) external auth {
+  function rely(address usr) public auth {
     wards[usr] = 1;
     emit Rely(usr);
   }
 
-  function deny(address usr) external auth {
+  function deny(address usr) public auth {
     wards[usr] = 0;
     emit Deny(usr);
   }

@@ -75,6 +75,8 @@ contract Fund is Auth, Initializable, ERC20 {
   constructor() ERC20("Fund", "FUND") {}
 
   function initialize(InitAddresses calldata addrs) external initializer {
+    rely(msg.sender);
+
     perpExRouter = IPerpExRouter(addrs.perpExRouter);
     perpReader = IPerpReader(addrs.perpReader);
     perpDataStore = addrs.perpDataStore;

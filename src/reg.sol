@@ -53,6 +53,8 @@ contract Registry is Auth {
   bytes32 public constant TTS_ACCUM_REWARDER = "TTS accum rewarder";
   bytes32 public constant TTP_ACCUM_REWARDER = "TTP accum rewarder";
 
+  bytes32 public constant FUND = "tfund";
+
   mapping(bytes32 => address) public addresses;
 
   function file(bytes32 name, address data) external auth {

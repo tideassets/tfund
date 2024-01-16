@@ -30,6 +30,7 @@ abstract contract RewarderBase is Auth, Initializable {
   uint public constant ONE = 10 ** 18; // one coin
 
   function initialize(address rt, address staker_, address rv) public virtual initializer {
+    rely(msg.sender);
     rewardToken = IERC20(rt);
     staker = StakerLike(staker_);
     rewardValut = rv;

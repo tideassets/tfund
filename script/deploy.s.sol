@@ -14,6 +14,7 @@ import {Stakex} from "src/stake.sol";
 import {Dao} from "src/dao.sol";
 import {IOU20} from "src/iou.sol";
 import {Registry} from "src/reg.sol";
+import {Fund} from "src/fund/fund.sol";
 
 // 1. 创建6种代币: TDT, sTCA, vTCA, tsStable, TTL, TTS, TTP.
 // 2. 创建3个 Vault: TDT Vault, sTCA Vault, vTCA Vault
@@ -94,6 +95,7 @@ contract DeployScript is Script {
     address ttl = registry.addresses(registry.TTL());
     address tts = registry.addresses(registry.TTS());
     address ttp = registry.addresses(registry.TTP());
+
     address dao = registry.addresses(registry.DAO());
     address teamDao = registry.addresses(registry.TEAM_DAO());
     address tsaDao = registry.addresses(registry.TSA_DAO());
@@ -261,9 +263,11 @@ contract DeployScript is Script {
     address ttp = registry.addresses(registry.TTP());
     address sTCA = registry.addresses(registry.TCAs());
     address vTCA = registry.addresses(registry.TCAv());
+
     address tdtVault = registry.addresses(registry.TDT_VAULT());
     address sTCAVault = registry.addresses(registry.TCAS_VAULT());
     address vTCAVault = registry.addresses(registry.TCAV_VAULT());
+
     address TTLLocker = registry.addresses(registry.TTL_LOKER());
     address TTSLocker = registry.addresses(registry.TTS_LOCK());
     address TTPLocker = registry.addresses(registry.TTP_LOKER());
@@ -301,6 +305,48 @@ contract DeployScript is Script {
     ttlRewarderAccum.setPSR(1 ether);
     ttsRewarderAccum.setPSR(1 ether);
     ttpRewarderAccum.setPSR(1 ether);
+  }
+
+  function _readFundParams() internal view returns (Fund.InitAddresses memory addrs) {
+    addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
+    addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
+    addrs.perpReader = vm.envAddress("PERP_READER");
+    addrs.perpDepositVault = vm.envAddress("PERP_DEPOSIT_VAULT");
+    addrs.perpRouter = vm.envAddress("PERP_ROUTER");
+    addrs.swapMasterChef = vm.envAddress("SWAP_MASTER_CHEF");
+    addrs.lendAddressProvider = vm.envAddress("END_ADDRESS_PROVIDER");
+  }
+
+  function _setUpFund() internal {
+    Fund.InitAddresses memory inputs = _readFundParams();
+    Fund fund = new Fund();
+    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+      address(fund),
+      deployer,
+      abi.encodeWithSignature(
+        "initialize(address,address,address,address,address,address,address)",
+        inputs.perpExRouter,
+        inputs.perpDataStore,
+        inputs.perpReader,
+        inputs.perpDepositVault,
+        inputs.perpRouter,
+        inputs.swapMasterChef,
+        inputs.lendAddressProvider
+      )
+    );
+    registry.file(registry.FUND(), address(proxy));
+  }
+
+  function _setUpTestTokens() internal {
+    // todo
+  }
+
+  function _setUpGems() internal {
+    // todo
+  }
+
+  function _setUpOracles() internal {
+    // todo
   }
 
   function _run() internal {

@@ -49,6 +49,7 @@ contract VeToken is Auth, ERC721Enumerable, Initializable {
   constructor() ERC721("", "") {}
 
   function initialize(address core_, string memory _name, string memory _symbol) public initializer {
+    rely(msg.sender);
     name_ = _name;
     symbol_ = _symbol;
 

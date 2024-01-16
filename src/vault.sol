@@ -60,6 +60,7 @@ contract Vault is Auth, Initializable {
   uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10;
 
   function initialize(address core_) public initializer {
+    rely(msg.sender);
     core = CoreLike(core_);
     excfee = ONE / 10;
   }

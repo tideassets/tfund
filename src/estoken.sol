@@ -37,6 +37,7 @@ contract EsToken is ERC20, Auth, Initializable {
     public
     initializer
   {
+    rely(msg.sender);
     token = IERC20(_token);
     name_ = _name;
     symbol_ = _symbol;

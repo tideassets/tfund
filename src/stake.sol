@@ -27,6 +27,7 @@ contract Stakex is Auth, Initializable {
   mapping(bytes32 => uint) public ri;
 
   function initialize(address stkToken_) public initializer {
+    rely(msg.sender);
     stkToken = IERC20(stkToken_);
     iou = new IOU20("stk IOU", "IOU");
     iou.file("callback", address(this));
