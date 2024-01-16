@@ -5,7 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {TransparentUpgradeableProxy} from
   "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TToken} from "src/token.sol";
-import {Vault} from "src/vault.sol";
+import {Vault, IERC20Metadata} from "src/vault.sol";
 import {Locker} from "src/lock.sol";
 import {RewarderBase, RewarderCycle, RewarderAccum} from "src/reward.sol";
 import {VeToken} from "src/vetoken.sol";
@@ -338,62 +338,68 @@ contract DeployScript is Script {
     registry.file(registry.FUND(), address(proxy));
   }
 
-  function _tdt_tokensName() internal pure returns (bytes32[] memory names) {
+  function _sTCA_tokensName() internal pure returns (bytes32[] memory names) {
+    names = new bytes32[](3);
+    names[0] = "USDT";
+    names[1] = "USDC";
+  }
+
+  function _vTCA_tokensName() internal pure returns (bytes32[] memory names) {
+    names = new bytes32[](7);
+    names[0] = "WETH";
+    names[1] = "WBTC";
+    names[2] = "LINK";
+  }
+
+  function _TDT_tokensName() internal pure returns (bytes32[] memory names) {
     names = new bytes32[](10);
     names[0] = "WETH";
     names[1] = "USDT";
     names[2] = "USDC";
-    names[3] = "DAI";
-    names[4] = "WBTC";
-    names[5] = "AAVE";
-    names[6] = "LINK";
-    names[7] = "BAT";
-    names[8] = "UNI";
-    names[9] = "MATIC";
+    names[3] = "WBTC";
+    names[4] = "LINK";
   }
 
-  function _aritrum_sepolia_oracles() internal pure returns (address[] memory oracals) {
-    // todo
+  mapping(bytes32 => address) public oracles;
+
+  function _set_aritrum_sepolia_oracles() internal {
+    oracles["WETH"] = 0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165;
+    oracles["WBTC"] = 0x56a43EB56Da12C0dc1D972ACb089c06a5dEF8e69;
+    oracles["USDT"] = 0x80EDee6f667eCc9f63a0a6f55578F870651f06A4;
+    oracles["USDC"] = 0x0153002d20B96532C639313c2d54c3dA09109309;
+    oracles["LINK"] = 0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298;
+    oracles["DAI"] = 0xb113F5A928BCfF189C998ab20d753a47F9dE5A61;
   }
 
-  function _aritrum_sepolia_gems() internal pure returns (address[] memory gems) {
-    // WETH=0xceBD1a3E9aaD7E60eDD509809e7f9cFF449b7851
-    // USDC=0x39E618D761fdD06bF65065d2974128aAeC7b3Fed
-    // LINK=0xaB7A6599C1804443C04c998D2be87Dc00A8c07bA
-    // AAVE=0x0FDc113b620F994fa7FE03b7454193f519494D40
-    // WBTC=0x4Ac0ED77C4375D48B51D56cc49b7710c3640b9c2
-    // BAT=0x27880d3ff48265b15FacA7109070be82eC9c861b
-    // USDT=0xEF64357875D7B0108642d61B99072935B81b1384
-    // UNI=0xCB774CF40CfFc88190d27D5c628094d2ca5650B4
-    // MATIC=0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D
-    gems = new address[](10);
-    gems[0] = 0xceBD1a3E9aaD7E60eDD509809e7f9cFF449b7851;
-    gems[1] = 0xEF64357875D7B0108642d61B99072935B81b1384;
-    gems[2] = 0x39E618D761fdD06bF65065d2974128aAeC7b3Fed;
-    gems[3] = address(0x0);
-    gems[4] = 0x4Ac0ED77C4375D48B51D56cc49b7710c3640b9c2;
-    gems[5] = 0x0FDc113b620F994fa7FE03b7454193f519494D40;
-    gems[6] = 0xaB7A6599C1804443C04c998D2be87Dc00A8c07bA;
-    gems[7] = 0x27880d3ff48265b15FacA7109070be82eC9c861b;
-    gems[8] = 0xCB774CF40CfFc88190d27D5c628094d2ca5650B4;
-    gems[9] = 0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D;
+  mapping(bytes32 => address) public gems;
+
+  function _set_aritrum_sepolia_gems() internal {
+    gems["USDT"] = 0xEF64357875D7B0108642d61B99072935B81b1384;
+    gems["USDC"] = 0x39E618D761fdD06bF65065d2974128aAeC7b3Fed;
+    gems["WBTC"] = 0x4Ac0ED77C4375D48B51D56cc49b7710c3640b9c2;
+    gems["AAVE"] = 0x0FDc113b620F994fa7FE03b7454193f519494D40;
+    gems["LINK"] = 0xaB7A6599C1804443C04c998D2be87Dc00A8c07bA;
+    gems["DAI"] = 0x9714e454274dC66BE57FA8361233221a376f4C2e;
+    gems["BAT"] = 0x27880d3ff48265b15FacA7109070be82eC9c861b;
+    gems["UNI"] = 0xCB774CF40CfFc88190d27D5c628094d2ca5650B4;
+    gems["MATIC"] = 0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D;
   }
 
   function eqS(string memory a, string memory b) internal pure returns (bool) {
     return (keccak256(abi.encodePacked((a))) == keccak256(abi.encodePacked((b))));
   }
 
-  function _getOracles() internal view returns (address[] memory oracles) {
+  function _set_oracles() internal {
     if (eqS(network, "arbitrum-sepolia")) {
-      oracles = _aritrum_sepolia_oracles();
+      _set_aritrum_sepolia_oracles();
     } else {
       revert("DeployScript/_getOracles: network not supported");
     }
   }
 
-  function _getGems() internal view returns (address[] memory gems) {
+  function _set_gems() internal {
     if (eqS(network, "arbitrum-sepolia")) {
-      gems = _aritrum_sepolia_gems();
+      _set_aritrum_sepolia_gems();
     } else {
       revert("DeployScript/_getGems: network not supported");
     }
@@ -401,101 +407,36 @@ contract DeployScript is Script {
 
   uint public constant ONE = 10 ** 18;
 
-  function _setUpVaultAsss() internal returns (Vault.Ass[] memory asss) {
-    address[] memory gems = _getGems();
-    address[] memory oracles = _getOracles();
-    asss = new Vault.Ass[](10);
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[0],
-      oracle: oracles[0]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[1],
-      oracle: oracles[1]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[2],
-      oracle: oracles[2]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[3],
-      oracle: oracles[3]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[4],
-      oracle: oracles[4]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[5],
-      oracle: oracles[5]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[6],
-      oracle: oracles[6]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[7],
-      oracle: oracles[7]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[8],
-      oracle: oracles[8]
-    });
-    asss[0] = Vault.Ass({
-      min: 0,
-      max: 80 * ONE / 100,
-      out: 50 * ONE / 100,
-      inv: 0,
-      gem: gems[9],
-      oracle: oracles[9]
-    });
+  function _setUp_init_vault(bytes32[] memory names, bytes32 key) internal {
+    uint len = names.length;
+    Vault.Ass[] memory asss = new Vault.Ass[](len);
+    uint[] memory amts = new uint[](len);
+    for (uint i = 0; i < len; i++) {
+      bytes32 name = names[i];
+      address gem = gems[name];
+      uint dec = IERC20Metadata(gem).decimals();
+      amts[i] = 10 ** dec * 1e6;
+      asss[i] = Vault.Ass({
+        min: 0,
+        max: 80 * ONE / 100,
+        out: 50 * ONE / 100,
+        inv: 0,
+        gem: gems[name],
+        oracle: oracles[name]
+      });
+    }
 
-    Vault tdtVault = Vault(registry.addresses(registry.TDT_VAULT()));
-    tdtVault.init(_tdt_tokensName(), asss);
+    Vault vault = Vault(registry.addresses(key));
+    vault.init(names, asss);
+    vault.init(names, amts);
   }
 
-  function _setUpGems() internal {
-    // todo
-  }
-
-  function _setUpOracles() internal {
-    // todo
+  function _setUp_vault_init() internal {
+    _set_gems();
+    _set_oracles();
+    _setUp_init_vault(_TDT_tokensName(), registry.TDT_VAULT());
+    _setUp_init_vault(_sTCA_tokensName(), registry.TCAS_VAULT());
+    _setUp_init_vault(_vTCA_tokensName(), registry.TCAV_VAULT());
   }
 
   function _run() internal {
@@ -510,6 +451,8 @@ contract DeployScript is Script {
 
     _setUpAuth();
     _setUpParams();
+
+    _setUp_vault_init();
   }
 
   function run() public {
