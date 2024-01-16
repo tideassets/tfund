@@ -5,7 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
 
@@ -262,7 +262,7 @@ contract Vault is Auth, Initializable {
     }
     inited = true;
     for (uint i = 0; i < names.length; i++) {
-      _buy(names[i], msg.sender, amts_[i], false);
+      _buyExactIn(names[i], msg.sender, amts_[i], false);
     }
   }
 
@@ -274,12 +274,12 @@ contract Vault is Auth, Initializable {
     Ass memory ass = asss[name];
     require(ass.max > 0, "Vault/asset not in whitelist");
 
-    uint need = out * uint(corePrice()) / uint(assPrice(name));
+    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
+    uint need = out * uint(corePrice()) * dec / uint(assPrice(name)) / ONE;
     uint fee = buyFee(name, need);
     need += fee;
     require(need <= maxIn, "Vault/amount in not enough");
-    IERC20 token = IERC20(ass.gem);
-    token.safeTransferFrom(msg.sender, address(this), need);
+    IERC20(ass.gem).safeTransferFrom(msg.sender, address(this), need);
     core.mint(to, out);
     return need;
   }
@@ -289,13 +289,13 @@ contract Vault is Auth, Initializable {
     whenNotPaused
     returns (uint)
   {
-    uint max = _buy(name, to, amt, true);
+    uint max = _buyExactIn(name, to, amt, true);
     require(max >= minOut, "Vault/amount out is too large");
     return max;
   }
 
   // buy tdt, sell amt of ass buy tdt
-  function _buy(bytes32 name, address to, uint amt, bool useFee) internal returns (uint) {
+  function _buyExactIn(bytes32 name, address to, uint amt, bool useFee) internal returns (uint) {
     Ass memory ass = asss[name];
     require(ass.max > 0, "Vault/asset not in whitelist");
 
@@ -304,12 +304,12 @@ contract Vault is Auth, Initializable {
       fee = buyFee(name, amt);
     }
 
-    uint max = uint(assPrice(name)) * (amt - fee) / uint(corePrice());
+    IERC20(ass.gem).safeTransferFrom(msg.sender, address(this), amt);
 
-    IERC20 token = IERC20(ass.gem);
-    token.safeTransferFrom(msg.sender, address(this), amt);
-
+    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
+    uint max = uint(assPrice(name)) * (amt - fee) * ONE / uint(corePrice()) / dec;
     core.mint(to, max);
+
     return max;
   }
 
@@ -320,14 +320,14 @@ contract Vault is Auth, Initializable {
   {
     Ass memory ass = asss[name];
     require(ass.max > 0, "Vault/asset not in whitelist");
+
     uint fee = sellFee(name, out);
-    uint need = uint(assPrice(name) * int(out + fee) / corePrice());
+    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
+    uint need = uint(assPrice(name) * int(out + fee)) * ONE / uint(corePrice()) / dec;
     require(need <= maxIn, "Vault/amount in is not enough");
 
     core.burn(msg.sender, need);
-
-    IERC20 token = IERC20(ass.gem);
-    token.safeTransfer(to, out);
+    IERC20(ass.gem).safeTransfer(to, out);
     return need;
   }
 
@@ -342,7 +342,8 @@ contract Vault is Auth, Initializable {
 
     core.burn(msg.sender, amt);
 
-    uint max = uint(corePrice() * int(amt) / assPrice(name));
+    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
+    uint max = uint(corePrice() * int(amt)) * dec / uint(assPrice(name)) / ONE;
 
     uint fee = sellFee(name, max);
     max = max - fee;
