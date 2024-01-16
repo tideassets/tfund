@@ -35,6 +35,7 @@ contract DeployScript is Script {
   Registry registry;
   address endpoint;
   address deployer;
+  string network;
   uint chainId;
 
   function _setUpRegistry() internal {
@@ -314,7 +315,7 @@ contract DeployScript is Script {
     addrs.perpDepositVault = vm.envAddress("PERP_DEPOSIT_VAULT");
     addrs.perpRouter = vm.envAddress("PERP_ROUTER");
     addrs.swapMasterChef = vm.envAddress("SWAP_MASTER_CHEF");
-    addrs.lendAddressProvider = vm.envAddress("END_ADDRESS_PROVIDER");
+    addrs.lendAddressProvider = vm.envAddress("LEND_ADDRESS_PROVIDER");
   }
 
   function _setUpFund() internal {
@@ -337,8 +338,156 @@ contract DeployScript is Script {
     registry.file(registry.FUND(), address(proxy));
   }
 
-  function _setUpTestTokens() internal {
+  function _tdt_tokensName() internal pure returns (bytes32[] memory names) {
+    names = new bytes32[](10);
+    names[0] = "WETH";
+    names[1] = "USDT";
+    names[2] = "USDC";
+    names[3] = "DAI";
+    names[4] = "WBTC";
+    names[5] = "AAVE";
+    names[6] = "LINK";
+    names[7] = "BAT";
+    names[8] = "UNI";
+    names[9] = "MATIC";
+  }
+
+  function _aritrum_sepolia_oracles() internal pure returns (address[] memory oracals) {
     // todo
+  }
+
+  function _aritrum_sepolia_gems() internal pure returns (address[] memory gems) {
+    // WETH=0xceBD1a3E9aaD7E60eDD509809e7f9cFF449b7851
+    // USDC=0x39E618D761fdD06bF65065d2974128aAeC7b3Fed
+    // LINK=0xaB7A6599C1804443C04c998D2be87Dc00A8c07bA
+    // AAVE=0x0FDc113b620F994fa7FE03b7454193f519494D40
+    // WBTC=0x4Ac0ED77C4375D48B51D56cc49b7710c3640b9c2
+    // BAT=0x27880d3ff48265b15FacA7109070be82eC9c861b
+    // USDT=0xEF64357875D7B0108642d61B99072935B81b1384
+    // UNI=0xCB774CF40CfFc88190d27D5c628094d2ca5650B4
+    // MATIC=0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D
+    gems = new address[](10);
+    gems[0] = 0xceBD1a3E9aaD7E60eDD509809e7f9cFF449b7851;
+    gems[1] = 0xEF64357875D7B0108642d61B99072935B81b1384;
+    gems[2] = 0x39E618D761fdD06bF65065d2974128aAeC7b3Fed;
+    gems[3] = address(0x0);
+    gems[4] = 0x4Ac0ED77C4375D48B51D56cc49b7710c3640b9c2;
+    gems[5] = 0x0FDc113b620F994fa7FE03b7454193f519494D40;
+    gems[6] = 0xaB7A6599C1804443C04c998D2be87Dc00A8c07bA;
+    gems[7] = 0x27880d3ff48265b15FacA7109070be82eC9c861b;
+    gems[8] = 0xCB774CF40CfFc88190d27D5c628094d2ca5650B4;
+    gems[9] = 0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D;
+  }
+
+  function eqS(string memory a, string memory b) internal pure returns (bool) {
+    return (keccak256(abi.encodePacked((a))) == keccak256(abi.encodePacked((b))));
+  }
+
+  function _getOracles() internal view returns (address[] memory oracles) {
+    if (eqS(network, "arbitrum-sepolia")) {
+      oracles = _aritrum_sepolia_oracles();
+    } else {
+      revert("DeployScript/_getOracles: network not supported");
+    }
+  }
+
+  function _getGems() internal view returns (address[] memory gems) {
+    if (eqS(network, "arbitrum-sepolia")) {
+      gems = _aritrum_sepolia_gems();
+    } else {
+      revert("DeployScript/_getGems: network not supported");
+    }
+  }
+
+  uint public constant ONE = 10 ** 18;
+
+  function _setUpVaultAsss() internal returns (Vault.Ass[] memory asss) {
+    address[] memory gems = _getGems();
+    address[] memory oracles = _getOracles();
+    asss = new Vault.Ass[](10);
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[0],
+      oracle: oracles[0]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[1],
+      oracle: oracles[1]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[2],
+      oracle: oracles[2]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[3],
+      oracle: oracles[3]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[4],
+      oracle: oracles[4]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[5],
+      oracle: oracles[5]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[6],
+      oracle: oracles[6]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[7],
+      oracle: oracles[7]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[8],
+      oracle: oracles[8]
+    });
+    asss[0] = Vault.Ass({
+      min: 0,
+      max: 80 * ONE / 100,
+      out: 50 * ONE / 100,
+      inv: 0,
+      gem: gems[9],
+      oracle: oracles[9]
+    });
+
+    Vault tdtVault = Vault(registry.addresses(registry.TDT_VAULT()));
+    tdtVault.init(_tdt_tokensName(), asss);
   }
 
   function _setUpGems() internal {
@@ -367,6 +516,7 @@ contract DeployScript is Script {
     deployer = vm.rememberKey(vm.envUint("PRIVATE_KEY"));
     endpoint = vm.envAddress("LAYERZERO_ENDPOINT");
     chainId = vm.envUint("CHAIN_ID");
+    network = vm.envString("NETWORK");
 
     vm.startBroadcast(deployer);
     _run();
