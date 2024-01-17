@@ -5,6 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "./auth.sol";
@@ -28,7 +29,7 @@ interface CoreLike is IERC20 {
   function burn(address account, uint amt) external;
 }
 
-contract Vault is Auth, Initializable {
+contract Vault is Auth, Initializable, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
   struct Ass {
@@ -213,7 +214,7 @@ contract Vault is Auth, Initializable {
     return total * ONE / ass.out;
   }
 
-  function fundDeposit(bytes32 name, uint amt) external auth {
+  function fundDeposit(bytes32 name, uint amt) external auth nonReentrant {
     require(address(fund) != address(0), "Vault/fund is zero");
     require(amt <= maxFundDeposit(name), "Vault/invilid deposit amount");
     Ass storage ass = asss[name];
@@ -223,7 +224,7 @@ contract Vault is Auth, Initializable {
     ass.inv += d;
   }
 
-  function fundWithdraw(bytes32 name, uint amt) external auth {
+  function fundWithdraw(bytes32 name, uint amt) external auth nonReentrant {
     require(address(fund) != address(0), "Vault/fund is zero");
     Ass storage ass = asss[name];
     uint w = fund.withdraw(ass.gem, amt);
@@ -269,6 +270,7 @@ contract Vault is Auth, Initializable {
   function buyExactOut(bytes32 name, address to, uint maxIn, uint out)
     external
     whenNotPaused
+    nonReentrant
     returns (uint)
   {
     Ass memory ass = asss[name];
@@ -287,6 +289,7 @@ contract Vault is Auth, Initializable {
   function buyExactIn(bytes32 name, address to, uint amt, uint minOut)
     external
     whenNotPaused
+    nonReentrant
     returns (uint)
   {
     uint max = _buyExactIn(name, to, amt, true);
@@ -316,6 +319,7 @@ contract Vault is Auth, Initializable {
   function sellExactOut(bytes32 name, address to, uint maxIn, uint out)
     external
     whenNotPaused
+    nonReentrant
     returns (uint)
   {
     Ass memory ass = asss[name];
@@ -335,6 +339,7 @@ contract Vault is Auth, Initializable {
   function sellExactIn(bytes32 name, address to, uint amt, uint minOut)
     external
     whenNotPaused
+    nonReentrant
     returns (uint)
   {
     Ass memory ass = asss[name];

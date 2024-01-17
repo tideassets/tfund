@@ -37,6 +37,7 @@ contract DeployScript is Script {
   address deployer;
   string network;
   uint chainId;
+  bool testnet;
 
   function _setUpRegistry() internal {
     registry = new Registry();
@@ -109,6 +110,10 @@ contract DeployScript is Script {
     registry.file(registry.TTL_LOKER(), address(TTLLocker));
     registry.file(registry.TTS_LOCK(), address(TTSLocker));
     registry.file(registry.TTP_LOKER(), address(TTPLocker));
+
+    TTLLocker.init();
+    TTSLocker.init();
+    TTPLocker.init();
   }
 
   function _setUpVeTokens() internal {
@@ -308,36 +313,6 @@ contract DeployScript is Script {
     ttpRewarderAccum.setPSR(1 ether);
   }
 
-  function _readFundParams() internal view returns (Fund.InitAddresses memory addrs) {
-    addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
-    addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
-    addrs.perpReader = vm.envAddress("PERP_READER");
-    addrs.perpDepositVault = vm.envAddress("PERP_DEPOSIT_VAULT");
-    addrs.perpRouter = vm.envAddress("PERP_ROUTER");
-    addrs.swapMasterChef = vm.envAddress("SWAP_MASTER_CHEF");
-    addrs.lendAddressProvider = vm.envAddress("LEND_ADDRESS_PROVIDER");
-  }
-
-  function _setUpFund() internal {
-    Fund.InitAddresses memory inputs = _readFundParams();
-    Fund fund = new Fund();
-    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-      address(fund),
-      deployer,
-      abi.encodeWithSignature(
-        "initialize(address,address,address,address,address,address,address)",
-        inputs.perpExRouter,
-        inputs.perpDataStore,
-        inputs.perpReader,
-        inputs.perpDepositVault,
-        inputs.perpRouter,
-        inputs.swapMasterChef,
-        inputs.lendAddressProvider
-      )
-    );
-    registry.file(registry.FUND(), address(proxy));
-  }
-
   function _sTCA_tokensName() internal pure returns (bytes32[] memory names) {
     names = new bytes32[](3);
     names[0] = "USDT";
@@ -369,6 +344,9 @@ contract DeployScript is Script {
     oracles["USDC"] = 0x0153002d20B96532C639313c2d54c3dA09109309;
     oracles["LINK"] = 0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298;
     oracles["DAI"] = 0xb113F5A928BCfF189C998ab20d753a47F9dE5A61;
+
+    address weth = gems["WETH"];
+    payable(weth).transfer(1 ether);
   }
 
   mapping(bytes32 => address) public gems;
@@ -406,6 +384,7 @@ contract DeployScript is Script {
   }
 
   uint public constant ONE = 10 ** 18;
+  uint public VAULT_INIT_AMOUNT = 10 ** 6;
 
   function _setUp_init_vault(bytes32[] memory names, bytes32 key) internal {
     uint len = names.length;
@@ -415,7 +394,10 @@ contract DeployScript is Script {
       bytes32 name = names[i];
       address gem = gems[name];
       uint dec = IERC20Metadata(gem).decimals();
-      amts[i] = 10 ** dec * 1e6;
+      amts[i] = 10 ** dec * VAULT_INIT_AMOUNT;
+      if (name == "WETH") {
+        amts[i] = ONE / 10; // no enough eth
+      }
       asss[i] = Vault.Ass({
         min: 0,
         max: 80 * ONE / 100,
@@ -439,6 +421,63 @@ contract DeployScript is Script {
     _setUp_init_vault(_vTCA_tokensName(), registry.TCAV_VAULT());
   }
 
+  function _readFundParams() internal view returns (Fund.InitAddresses memory addrs) {
+    addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
+    addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
+    addrs.perpReader = vm.envAddress("PERP_READER");
+    addrs.perpDepositVault = vm.envAddress("PERP_DEPOSIT_VAULT");
+    addrs.perpRouter = vm.envAddress("PERP_ROUTER");
+    addrs.swapMasterChef = vm.envAddress("SWAP_MASTER_CHEF");
+    addrs.lendAddressProvider = vm.envAddress("LEND_ADDRESS_PROVIDER");
+  }
+
+  function _fund_oracles() internal view returns (address[] memory oracles_) {
+    bytes32[] memory names = _TDT_tokensName();
+    uint len = names.length;
+    oracles_ = new address[](len);
+    for (uint i = 0; i < len; i++) {
+      oracles_[i] = oracles[names[i]];
+    }
+  }
+
+  function _fund_tokens() internal view returns (address[] memory tokens) {
+    bytes32[] memory names = _TDT_tokensName();
+    uint len = names.length;
+    tokens = new address[](len);
+    for (uint i = 0; i < len; i++) {
+      tokens[i] = gems[names[i]];
+    }
+  }
+
+  function _setUpFund() internal {
+    Fund.InitAddresses memory inputs = _readFundParams();
+    Fund fund = new Fund();
+    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+      address(fund),
+      deployer,
+      abi.encodeWithSignature(
+        "initialize(address,address,address,address,address,address,address)",
+        inputs.perpExRouter,
+        inputs.perpDataStore,
+        inputs.perpReader,
+        inputs.perpDepositVault,
+        inputs.perpRouter,
+        inputs.swapMasterChef,
+        inputs.lendAddressProvider
+      )
+    );
+    registry.file(registry.FUND(), address(proxy));
+    Fund tFund = Fund(registry.addresses(registry.FUND()));
+    tFund.init(_fund_tokens(), _fund_oracles());
+
+    Vault tdtVault = Vault(registry.addresses(registry.TDT_VAULT()));
+    Vault sTCAVault = Vault(registry.addresses(registry.TCAS_VAULT()));
+    Vault vTCAVault = Vault(registry.addresses(registry.TCAV_VAULT()));
+    tdtVault.file("Fund", address(tFund));
+    sTCAVault.file("Fund", address(tFund));
+    vTCAVault.file("Fund", address(tFund));
+  }
+
   function _run() internal {
     _setUpTokens();
     _setUpVaults();
@@ -453,16 +492,81 @@ contract DeployScript is Script {
     _setUpParams();
 
     _setUp_vault_init();
+    _setUpFund();
   }
 
-  function run() public {
+  function _before() internal {
     deployer = vm.rememberKey(vm.envUint("PRIVATE_KEY"));
     endpoint = vm.envAddress("LAYERZERO_ENDPOINT");
     chainId = vm.envUint("CHAIN_ID");
     network = vm.envString("NETWORK");
+    testnet = vm.envBool("TESTNET");
 
+    VAULT_INIT_AMOUNT = vm.envUint("VAULT_INIT_AMOUNT");
+  }
+
+  function run() public virtual {
     vm.startBroadcast(deployer);
+    _before();
     _run();
+    _after();
     vm.stopBroadcast();
+  }
+
+  function _after() internal {
+    if (testnet) {
+      _test_vault();
+      _test_fund();
+    }
+  }
+
+  function b32_S(bytes32 _bytes32) public pure returns (string memory) {
+    uint8 i = 0;
+    while (i < 32 && _bytes32[i] != 0) {
+      i++;
+    }
+    bytes memory bytesArray = new bytes(i);
+    for (i = 0; i < 32 && _bytes32[i] != 0; i++) {
+      bytesArray[i] = _bytes32[i];
+    }
+    return string(bytesArray);
+  }
+
+  function _test_vault() internal {
+    Vault tdtVault = Vault(registry.addresses(registry.TDT_VAULT()));
+    bytes32[] memory names = _TDT_tokensName();
+    uint len = names.length;
+    for (uint i = 0; i < len; i++) {
+      bytes32 name = names[i];
+      address gem = gems[name];
+      uint dec = IERC20Metadata(gem).decimals();
+      uint amt_in = 10 ** dec * 1000000;
+      uint amt_out = amt_in / 1000;
+      if (name == "WETH") {
+        amt_in = ONE / 10; // no enough eth
+        amt_out = amt_in * 1000;
+      }
+
+      string memory nameS = b32_S(name);
+      uint out = tdtVault.buyExactIn(name, deployer, amt_in, 0);
+      console2.log("buyExactIn", nameS, amt_in, out);
+      uint use_in = tdtVault.buyExactOut(name, deployer, amt_in, amt_out);
+      console2.log("buyExactOut", nameS, use_in, amt_out);
+
+      console2.log("Vault balance", nameS, tdtVault.assetAmount(name));
+      console2.log("Vault value", nameS, tdtVault.assetValue(name));
+
+      tdtVault.sellExactIn(name, deployer, out / 2, 0);
+      tdtVault.sellExactOut(name, deployer, amt_out, use_in / 2);
+
+      console2.log("Vault balance", nameS, tdtVault.assetAmount(name));
+      console2.log("Vault value", nameS, tdtVault.assetValue(name));
+
+      tdtVault.fundDeposit(name, amt_in / 2);
+    }
+  }
+
+  function _test_fund() internal {
+    // todo
   }
 }
