@@ -1,2 +1,7 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @layerzerolabs/solidity-examples/=lib/solidity-examples/
+@tswap/core-v3/=lib/tswap/projects/v3-core/contracts/
+@tswap/periphery-v3/=lib/tswap/projects/v3-periphery/contracts/
+@tswap/masterchef-v3/=lib/tswap/projects/masterchef-v3/contracts/
+@tswap/smart-router/=lib/tswap/projects/router/contracts/
+@tperp/=lib/tperp/contracts/
