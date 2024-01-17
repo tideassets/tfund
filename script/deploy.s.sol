@@ -14,7 +14,7 @@ import {Stakex} from "src/stake.sol";
 import {Dao} from "src/dao.sol";
 import {IOU20} from "src/iou.sol";
 import {Registry} from "src/reg.sol";
-import {Fund} from "src/fund/fund.sol";
+import "src/fund/fund.sol";
 
 // 1. 创建6种代币: TDT, sTCA, vTCA, tsStable, TTL, TTS, TTP.
 // 2. 创建3个 Vault: TDT Vault, sTCA Vault, vTCA Vault
@@ -478,7 +478,8 @@ contract DeployScript is Script {
     vTCAVault.file("Fund", address(tFund));
   }
 
-  function _run() internal {
+  function _setUp() internal {
+    _setUpRegistry();
     _setUpTokens();
     _setUpVaults();
     _setUpDaos();
@@ -493,6 +494,15 @@ contract DeployScript is Script {
 
     _setUp_vault_init();
     _setUpFund();
+  }
+
+  function _run() internal {
+    address registry_ = vm.envAddress("REGISTRY");
+    if (registry_ == address(0)) {
+      _setUp();
+    } else {
+      registry = Registry(registry_);
+    }
   }
 
   function _before() internal {
@@ -562,11 +572,12 @@ contract DeployScript is Script {
       console2.log("Vault balance", nameS, tdtVault.assetAmount(name));
       console2.log("Vault value", nameS, tdtVault.assetValue(name));
 
-      tdtVault.fundDeposit(name, amt_in / 2);
+      tdtVault.fundDeposit(name, amt_in);
     }
   }
 
   function _test_fund() internal {
-    // todo
+    Fund fund = Fund(registry.addresses(registry.FUND()));
+    console2.log("Fund price and total value", uint(fund.price()), fund.totalValue());
   }
 }

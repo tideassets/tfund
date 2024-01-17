@@ -306,7 +306,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     uint longAmount,
     uint shortAmount,
     uint execFee
-  ) external payable auth returns (bytes32 key) {
+  ) external payable auth nonReentrant returns (bytes32 key) {
     perpExRouter.sendTokens(long, perpDepositVault, longAmount);
     perpExRouter.sendTokens(short, perpDepositVault, shortAmount);
     IPerpExRouter.CreateDepositParams memory params = IPerpExRouter.CreateDepositParams({
@@ -331,6 +331,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     external
     payable
     auth
+    nonReentrant
     returns (bytes32 key)
   {
     IPerpExRouter.CreateWithdrawalParams memory params = IPerpExRouter.CreateWithdrawalParams({
@@ -354,6 +355,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     external
     payable
     auth
+    nonReentrant
     returns (bytes32)
   {
     return perpExRouter.createOrder{value: params.numbers.executionFee}(params);
@@ -365,19 +367,19 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     uint acceptablePrice,
     uint triggerPrice,
     uint minOutputAmount
-  ) external payable auth {
+  ) external payable auth nonReentrant {
     perpExRouter.updateOrder(key, sizeDeltaUsd, acceptablePrice, triggerPrice, minOutputAmount);
   }
 
-  function perpCancelOrder(bytes32 key) external auth {
+  function perpCancelOrder(bytes32 key) external auth nonReentrant {
     perpExRouter.cancelOrder(key);
   }
 
-  function perpCancelDeposit(bytes32 key) external auth {
+  function perpCancelDeposit(bytes32 key) external auth nonReentrant {
     perpExRouter.cancelDeposit(key);
   }
 
-  function perpCancelWithdrawal(bytes32 key) external auth {
+  function perpCancelWithdrawal(bytes32 key) external auth nonReentrant {
     perpExRouter.cancelWithdrawal(key);
   }
 
@@ -420,6 +422,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     external
     payable
     auth
+    nonReentrant
     returns (uint tokenId, uint amount0, uint amount1)
   {
     (uint id,, uint a0, uint a1) = swapNFTManager.mint(params);
@@ -433,12 +436,13 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     public
     payable
     auth
+    nonReentrant
     returns (uint amount0, uint amount1)
   {
     (amount0, amount1) = swapMasterChef.collect(params);
   }
 
-  function swapHavrest(uint _tokenId, address _to) external auth returns (uint reward) {
+  function swapHavrest(uint _tokenId, address _to) external auth nonReentrant returns (uint reward) {
     return swapMasterChef.harvest(_tokenId, _to);
   }
 
@@ -446,6 +450,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     external
     payable
     auth
+    nonReentrant
     returns (uint128 liquidity, uint amount0, uint amount1)
   {
     (liquidity, amount0, amount1) = swapMasterChef.increaseLiquidity(params);
@@ -455,16 +460,17 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     external
     payable
     auth
+    nonReentrant
     returns (uint amount0, uint amount1)
   {
     (amount0, amount1) = swapMasterChef.decreaseLiquidity(params);
   }
 
-  function swapWithdraw(uint tokenId) external auth returns (uint reward) {
+  function swapWithdraw(uint tokenId) external auth nonReentrant returns (uint reward) {
     reward = swapMasterChef.withdraw(tokenId, address(this));
   }
 
-  function swapBurn(uint tokenId) external auth {
+  function swapBurn(uint tokenId) external auth nonReentrant {
     swapMasterChef.burn(tokenId);
     uint[] storage ids = nftIds;
     uint index = nftIdsIndex[tokenId];
@@ -528,12 +534,12 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     return v;
   }
 
-  function lendDeposit(address asset, uint amount) external auth {
+  function lendDeposit(address asset, uint amount) external auth nonReentrant {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
     ILendPool(lendAddressProvider.getPool()).supply(asset, amount, address(this), 0);
   }
 
-  function lendWithdraw(address asset, uint amount) public auth {
+  function lendWithdraw(address asset, uint amount) public auth nonReentrant {
     ILendPool(lendAddressProvider.getPool()).withdraw(asset, amount, address(this));
   }
 
