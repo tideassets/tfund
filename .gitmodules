@@ -10,3 +10,7 @@
 [submodule "lib/ds-libs"]
 	path = lib/ds-libs
 	url = https://github.com/tideassets/ds-libs
+[submodule "lib/tswap"]
+	path = lib/tswap
+	url = https://github.com/tideassets/tswap
+	branch = main
