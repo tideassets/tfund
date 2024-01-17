@@ -14,3 +14,7 @@
 	path = lib/tswap
 	url = https://github.com/tideassets/tswap
 	branch = main
+[submodule "lib/tperp"]
+	path = lib/tperp
+	url = https://github.com/tideassets/tperp
+	branch = main
