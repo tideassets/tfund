@@ -14,6 +14,7 @@ import {Stakex} from "src/stake.sol";
 import {Dao} from "src/dao.sol";
 import {IOU20} from "src/iou.sol";
 import {Registry} from "src/reg.sol";
+import {WETH9_} from "ds-weth/WETH9.sol";
 import "src/fund/fund.sol";
 
 // 1. 创建6种代币: TDT, sTCA, vTCA, tsStable, TTL, TTS, TTP.
@@ -110,6 +111,10 @@ contract DeployScript is Script {
     registry.file(registry.TTL_LOKER(), address(TTLLocker));
     registry.file(registry.TTS_LOCK(), address(TTSLocker));
     registry.file(registry.TTP_LOKER(), address(TTPLocker));
+
+    TToken(ttl).rely(address(TTLLocker));
+    TToken(tts).rely(address(TTSLocker));
+    TToken(ttp).rely(address(TTPLocker));
 
     TTLLocker.init();
     TTSLocker.init();
@@ -314,25 +319,23 @@ contract DeployScript is Script {
   }
 
   function _sTCA_tokensName() internal pure returns (bytes32[] memory names) {
-    names = new bytes32[](3);
-    names[0] = "USDT";
-    names[1] = "USDC";
+    names = new bytes32[](1);
+    names[0] = "USDC";
   }
 
   function _vTCA_tokensName() internal pure returns (bytes32[] memory names) {
-    names = new bytes32[](7);
+    names = new bytes32[](3);
     names[0] = "WETH";
     names[1] = "WBTC";
     names[2] = "LINK";
   }
 
   function _TDT_tokensName() internal pure returns (bytes32[] memory names) {
-    names = new bytes32[](10);
+    names = new bytes32[](4);
     names[0] = "WETH";
-    names[1] = "USDT";
-    names[2] = "USDC";
-    names[3] = "WBTC";
-    names[4] = "LINK";
+    names[1] = "USDC";
+    names[2] = "WBTC";
+    names[3] = "LINK";
   }
 
   mapping(bytes32 => address) public oracles;
@@ -344,15 +347,12 @@ contract DeployScript is Script {
     oracles["USDC"] = 0x0153002d20B96532C639313c2d54c3dA09109309;
     oracles["LINK"] = 0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298;
     oracles["DAI"] = 0xb113F5A928BCfF189C998ab20d753a47F9dE5A61;
-
-    address weth = gems["WETH"];
-    payable(weth).transfer(1 ether);
   }
 
   mapping(bytes32 => address) public gems;
 
   function _set_aritrum_sepolia_gems() internal {
-    gems["USDT"] = 0xEF64357875D7B0108642d61B99072935B81b1384;
+    gems["WETH"] = 0xceBD1a3E9aaD7E60eDD509809e7f9cFF449b7851;
     gems["USDC"] = 0x39E618D761fdD06bF65065d2974128aAeC7b3Fed;
     gems["WBTC"] = 0x4Ac0ED77C4375D48B51D56cc49b7710c3640b9c2;
     gems["AAVE"] = 0x0FDc113b620F994fa7FE03b7454193f519494D40;
@@ -361,6 +361,9 @@ contract DeployScript is Script {
     gems["BAT"] = 0x27880d3ff48265b15FacA7109070be82eC9c861b;
     gems["UNI"] = 0xCB774CF40CfFc88190d27D5c628094d2ca5650B4;
     gems["MATIC"] = 0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D;
+
+    address weth = gems["WETH"];
+    WETH9_(payable(weth)).deposit{value: 1 ether}();
   }
 
   function eqS(string memory a, string memory b) internal pure returns (bool) {
@@ -387,6 +390,8 @@ contract DeployScript is Script {
   uint public VAULT_INIT_AMOUNT = 10 ** 6;
 
   function _setUp_init_vault(bytes32[] memory names, bytes32 key) internal {
+    console2.log("_setUp_init_vault", b32_S(key));
+    Vault vault = Vault(registry.addresses(key));
     uint len = names.length;
     Vault.Ass[] memory asss = new Vault.Ass[](len);
     uint[] memory amts = new uint[](len);
@@ -398,6 +403,7 @@ contract DeployScript is Script {
       if (name == "WETH") {
         amts[i] = ONE / 10; // no enough eth
       }
+      IERC20(gem).approve(address(vault), amts[i]);
       asss[i] = Vault.Ass({
         min: 0,
         max: 80 * ONE / 100,
@@ -406,9 +412,9 @@ contract DeployScript is Script {
         gem: gems[name],
         oracle: oracles[name]
       });
+      console2.log("gem:", b32_S(name), gem, amts[i]);
     }
 
-    Vault vault = Vault(registry.addresses(key));
     vault.init(names, asss);
     vault.init(names, amts);
   }
@@ -506,7 +512,7 @@ contract DeployScript is Script {
     }
     address fund_ = registry.addresses(registry.FUND());
     if (fund_ == address(0)) {
-      _setUpFund();
+      // _setUpFund();
     }
     vm.stopBroadcast();
   }
@@ -563,6 +569,8 @@ contract DeployScript is Script {
         amt_out = amt_in * 1000;
       }
 
+      IERC20(gem).approve(address(tdtVault), amt_in * 2);
+
       string memory nameS = b32_S(name);
       uint out = tdtVault.buyExactIn(name, deployer, amt_in, 0);
       console2.log("buyExactIn", nameS, amt_in, out);
@@ -578,12 +586,15 @@ contract DeployScript is Script {
       console2.log("Vault balance", nameS, tdtVault.assetAmount(name));
       console2.log("Vault value", nameS, tdtVault.assetValue(name));
 
-      tdtVault.fundDeposit(name, amt_in);
+      // tdtVault.fundDeposit(name, amt_in);
     }
   }
 
   function _test_fund() internal {
     Fund fund = Fund(registry.addresses(registry.FUND()));
+    if (fund == Fund(address(0))) {
+      return;
+    }
     console2.log("Fund price and total value", uint(fund.price()), fund.totalValue());
   }
 }

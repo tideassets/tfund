@@ -61,7 +61,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10;
 
   function initialize(address core_) public initializer {
-    rely(msg.sender);
+    wards[msg.sender] = 1;
     core = CoreLike(core_);
     excfee = ONE / 10;
   }
@@ -91,6 +91,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   function init(bytes32[] calldata names, Ass[] calldata assets) external auth {
     for (uint i = 0; i < names.length; ++i) {
       asss[names[i]] = assets[i];
+      _file(names[i], false);
     }
   }
 

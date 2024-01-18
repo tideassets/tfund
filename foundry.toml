@@ -11,14 +11,10 @@ line_length = 100
 tab_width = 2
 int_types = "short"
 
-
 [rpc_endpoints]
-goerli = "${GOERLI_RPC_URL}"
+goerli = "${RPC_URL}"
+arbitrum-sepolia = "${RPC_URL}"
 
 [etherscan]
 goerli = { key = "${ETHERSCAN_API_KEY}" }
-
-# remappings = [
-#     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts",
-#     "@layerzerolabs/solidity-examples/=lib/solidity-examples/",
-# ]
+arbitrum-sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.arbiscan.io/api" }

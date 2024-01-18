@@ -76,8 +76,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   constructor() ERC20("", "") {}
 
   function initialize(InitAddresses calldata addrs) external initializer {
-    rely(msg.sender);
-
+    wards[msg.sender] = 1;
     perpExRouter = IPerpExRouter(addrs.perpExRouter);
     perpReader = IPerpReader(addrs.perpReader);
     perpDataStore = addrs.perpDataStore;

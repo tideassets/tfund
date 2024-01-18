@@ -27,7 +27,7 @@ contract Stakex is Auth, Initializable {
   mapping(bytes32 => uint) public ri;
 
   function initialize(address stkToken_) public initializer {
-    rely(msg.sender);
+    wards[msg.sender] = 1;
     stkToken = IERC20(stkToken_);
     iou = new IOU20("stk IOU", "IOU");
     iou.file("callback", address(this));
@@ -71,16 +71,14 @@ contract Stakex is Auth, Initializable {
 
   function stake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
-    stkToken.safeTransferFrom(msg.sender, address(this), amt);
 
-    // _stake(to, amt);
+    stkToken.safeTransferFrom(msg.sender, address(this), amt);
     iou.mint(to, amt);
   }
 
   function unstake(address to, uint amt) external whenNotPaused {
     require(amt > 0, "Stake/zero-amount");
 
-    // _unstake(msg.sender, amt);
     iou.burn(msg.sender, amt);
     stkToken.safeTransfer(to, amt);
   }
