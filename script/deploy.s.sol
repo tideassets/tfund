@@ -493,16 +493,22 @@ contract DeployScript is Script {
     _setUpParams();
 
     _setUp_vault_init();
-    _setUpFund();
+    // _setUpFund();
   }
 
   function _run() internal {
+    vm.startBroadcast(deployer);
     address registry_ = vm.envAddress("REGISTRY");
     if (registry_ == address(0)) {
       _setUp();
     } else {
       registry = Registry(registry_);
     }
+    address fund_ = registry.addresses(registry.FUND());
+    if (fund_ == address(0)) {
+      _setUpFund();
+    }
+    vm.stopBroadcast();
   }
 
   function _before() internal {
@@ -516,18 +522,18 @@ contract DeployScript is Script {
   }
 
   function run() public virtual {
-    vm.startBroadcast(deployer);
     _before();
     _run();
     _after();
-    vm.stopBroadcast();
   }
 
   function _after() internal {
+    vm.startBroadcast(deployer);
     if (testnet) {
       _test_vault();
       _test_fund();
     }
+    vm.stopBroadcast();
   }
 
   function b32_S(bytes32 _bytes32) public pure returns (string memory) {
