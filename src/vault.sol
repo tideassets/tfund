@@ -52,8 +52,6 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   uint public excfee; // Fee charged for the part that exceeds the purchase or sale
 
   uint constant ONE = 1e18;
-  // oracal price precision is 1e8, we use 1e18, so must expend 1e10
-  uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10;
 
   // events
   event InitAssets(bytes32[] names, Ass[] assets);
@@ -75,16 +73,16 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
 
   function corePrice() public view returns (int) {
     if (address(coreOracle) == address(0)) {
-      return int(ONE);
+      return int(1e8);
     }
     (, int lasstAnswer,,,) = OracleLike(coreOracle).latestRoundData();
-    return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
+    return lasstAnswer;
   }
 
   function assPrice(bytes32 name) public view returns (int) {
     OracleLike o = OracleLike(asss[name].oracle);
     (, int lasstAnswer,,,) = o.latestRoundData();
-    return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
+    return lasstAnswer;
   }
 
   function assLen() public view returns (uint) {
@@ -176,7 +174,8 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
 
   function assetValue(bytes32 name) public view returns (uint) {
     uint balance = assetAmount(name);
-    uint value = uint(assPrice(name)) * balance;
+    uint dec = 10 ** IERC20Metadata(asss[name].gem).decimals();
+    uint value = uint(assPrice(name)) * balance / dec;
     return value;
   }
 
@@ -187,7 +186,8 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
       bytes32 name = assList[i];
       Ass memory ass = asss[name];
       uint bal = IERC20(ass.gem).balanceOf(address(this));
-      total += uint(assPrice(name)) * bal;
+      uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
+      total += uint(assPrice(name)) * bal / dec;
     }
     if (address(fund) != address(0)) {
       total += uint(fund.price()) * fund.balanceOf(address(this));
