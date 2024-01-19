@@ -184,7 +184,7 @@ contract VaultTest is Test {
     bytes32[] memory names = new bytes32[](len);
     uint[] memory amts = new uint[](len);
     for (uint i = 0; i < len; i++) {
-      bytes32 name = val.assList(i);
+      bytes32 name = val.assetList(i);
       amts[i] = 1000 ether;
       names[i] = name;
     }

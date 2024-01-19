@@ -11,8 +11,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Auth} from "./auth.sol";
 
 interface FundLike {
-  function deposit(address ass, uint amt) external returns (uint);
-  function withdraw(address ass, uint amt) external returns (uint);
+  function deposit(address asset, uint amt) external returns (uint);
+  function withdraw(address asset, uint amt) external returns (uint);
   function balanceOf(address) external view returns (uint);
   function price() external view returns (int);
 }
@@ -32,7 +32,7 @@ interface CoreLike is IERC20 {
 contract Vault is Auth, Initializable, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
-  struct Ass {
+  struct Asset {
     uint min; // min persent
     uint max; // max persent
     uint out; // fund persent
@@ -41,9 +41,9 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     address oracle; // price oracle
   }
 
-  bytes32[] public assList;
-  mapping(bytes32 name => uint index) assIndexs;
-  mapping(bytes32 name => Ass) public asss;
+  bytes32[] public assetList;
+  mapping(bytes32 name => uint index) assetIndexes;
+  mapping(bytes32 name => Asset) public assets;
 
   FundLike fund;
   CoreLike public core; // TDT, TCAv1, TCAv2
@@ -52,9 +52,11 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   uint public excfee; // Fee charged for the part that exceeds the purchase or sale
 
   uint constant ONE = 1e18;
+  uint constant ORACLE_PRECISION = 8;
+  uint constant FLOAT_PRECISION = 27;
 
   // events
-  event InitAssets(bytes32[] names, Ass[] assets);
+  event InitAssets(bytes32[] names, Asset[] assets);
   event InitBuying(bytes32[] names, uint[] amts);
   event Filed(bytes32 indexed who, bytes32 indexed what, uint data);
   event Filed(bytes32 indexed who, bytes32 indexed what, address data);
@@ -71,62 +73,65 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     excfee = ONE / 10;
   }
 
-  function corePrice() public view returns (int) {
+  function corePrice() public view returns (uint) {
     if (address(coreOracle) == address(0)) {
-      return int(1e8);
+      return 1e9; // 1 usd: 10 ** (27 - 18)
     }
     (, int lasstAnswer,,,) = OracleLike(coreOracle).latestRoundData();
-    return lasstAnswer;
+    require(lasstAnswer > 0, "Vault/invalid core price");
+    return uint(lasstAnswer) * 10; // 10 ** (27 - 8 - 18)
   }
 
-  function assPrice(bytes32 name) public view returns (int) {
-    OracleLike o = OracleLike(asss[name].oracle);
+  function assetPrice(bytes32 name) public view returns (uint) {
+    OracleLike o = OracleLike(assets[name].oracle);
     (, int lasstAnswer,,,) = o.latestRoundData();
-    return lasstAnswer;
+    require(lasstAnswer > 0, "Vault/invalid asset price");
+    uint dec = IERC20Metadata(assets[name].gem).decimals();
+    return uint(lasstAnswer) * (10 ** (19 - dec)); // 10 ** (27 - 8 - dec)
   }
 
   function assLen() public view returns (uint) {
-    return assList.length;
+    return assetList.length;
   }
 
-  function init(bytes32[] calldata names, Ass[] calldata assets) external auth {
+  function init(bytes32[] calldata names, Asset[] calldata assets_) external auth {
     for (uint i = 0; i < names.length; ++i) {
-      asss[names[i]] = assets[i];
+      assets[names[i]] = assets_[i];
       _file(names[i], false);
     }
-    emit InitAssets(names, assets);
+    emit InitAssets(names, assets_);
   }
 
   function _file(bytes32 who, bool rm) internal {
     if (!rm) {
-      if (assIndexs[who] > 0) {
+      if (assetIndexes[who] > 0) {
         return;
       }
-      assList.push(who);
-      assIndexs[who] = assList.length;
+      assetList.push(who);
+      assetIndexes[who] = assetList.length;
     } else {
-      require(assIndexs[who] > 0, "Vault/asset not added");
-      bytes32 last = assList[assList.length - 1];
+      require(assetIndexes[who] > 0, "Vault/asset not added");
+      bytes32 last = assetList[assetList.length - 1];
       if (who != last) {
-        uint i = assIndexs[who] - 1;
-        assList[i] = last;
-        assIndexs[last] = i + 1;
+        uint i = assetIndexes[who] - 1;
+        assetList[i] = last;
+        assetIndexes[last] = i + 1;
       }
-      assList.pop();
-      delete assIndexs[who];
-      delete asss[who];
+      assetList.pop();
+      delete assetIndexes[who];
+      delete assets[who];
     }
   }
 
   function file(bytes32 who, bytes32 what, uint data) external auth whenNotPaused {
     if (what == "max") {
-      asss[who].max = data;
+      assets[who].max = data;
     } else if (what == "min") {
-      asss[who].min = data;
+      assets[who].min = data;
     } else if (what == "out") {
-      asss[who].max = data;
+      assets[who].max = data;
     } else if (what == "inv") {
-      asss[who].max = data;
+      assets[who].max = data;
     } else {
       revert("Vault/file-unrecognized-param");
     }
@@ -135,9 +140,9 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
 
   function file(bytes32 who, bytes32 what, address data) external auth whenNotPaused {
     if (what == "gem") {
-      asss[who].gem = data;
+      assets[who].gem = data;
     } else if (what == "oracle") {
-      asss[who].oracle = data;
+      assets[who].oracle = data;
     } else {
       revert("Vault/file-unrecognized-param");
     }
@@ -167,27 +172,25 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   }
 
   function assetAmount(bytes32 name) public view returns (uint) {
-    Ass memory ass = asss[name];
-    IERC20 token = IERC20(ass.gem);
-    return token.balanceOf(address(this)) + ass.inv;
+    Asset memory asset = assets[name];
+    IERC20 token = IERC20(asset.gem);
+    return token.balanceOf(address(this)) + asset.inv;
   }
 
   function assetValue(bytes32 name) public view returns (uint) {
     uint balance = assetAmount(name);
-    uint dec = 10 ** IERC20Metadata(asss[name].gem).decimals();
-    uint value = uint(assPrice(name)) * balance / dec;
+    uint value = uint(assetPrice(name)) * balance;
     return value;
   }
 
   function totalValue() public view returns (uint) {
     uint total = 0;
-    uint len = assList.length;
+    uint len = assetList.length;
     for (uint i = 1; i < len; i++) {
-      bytes32 name = assList[i];
-      Ass memory ass = asss[name];
-      uint bal = IERC20(ass.gem).balanceOf(address(this));
-      uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
-      total += uint(assPrice(name)) * bal / dec;
+      bytes32 name = assetList[i];
+      Asset memory asset = assets[name];
+      uint bal = IERC20(asset.gem).balanceOf(address(this));
+      total += assetPrice(name) * bal;
     }
     if (address(fund) != address(0)) {
       total += uint(fund.price()) * fund.balanceOf(address(this));
@@ -196,20 +199,20 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   }
 
   function price() public view returns (int) {
-    return int(totalValue() / core.totalSupply());
+    return int(totalValue() * ONE / core.totalSupply());
   }
 
   function _calcuPersent(bytes32 name, int amt) internal view returns (uint) {
     int total = int(totalValue());
-    require(total > 0, "Vault/ass amount error");
-    int assVal = int(assetValue(name));
-    int dval = (assPrice(name) * amt);
+    require(total > 0, "Vault/asset amount error");
+    int aval = int(assetValue(name));
+    int dval = int(assetPrice(name)) * amt;
     total += dval;
-    assVal += dval;
-    if (assVal < 0) {
-      assVal = 0;
+    aval += dval;
+    if (aval < 0) {
+      aval = 0;
     }
-    return (ONE * uint(assVal)) / uint(total);
+    return uint(aval) / uint(total);
   }
 
   function assetPersent(bytes32 name) public view returns (uint) {
@@ -217,32 +220,32 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   }
 
   function maxFundDeposit(bytes32 name) public view returns (uint) {
-    Ass memory ass = asss[name];
-    IERC20 token = IERC20(ass.gem);
-    uint total = token.balanceOf(address(this)) + ass.inv;
-    return total * ONE / ass.out;
+    Asset memory asset = assets[name];
+    IERC20 token = IERC20(asset.gem);
+    uint total = token.balanceOf(address(this)) + asset.inv;
+    return total * ONE / asset.out;
   }
 
   function fundDeposit(bytes32 name, uint amt) external auth nonReentrant {
     require(address(fund) != address(0), "Vault/fund is zero");
     require(amt <= maxFundDeposit(name), "Vault/invilid deposit amount");
-    Ass storage ass = asss[name];
-    IERC20 token = IERC20(ass.gem);
+    Asset storage asset = assets[name];
+    IERC20 token = IERC20(asset.gem);
     token.forceApprove(address(fund), amt);
-    uint d = fund.deposit(ass.gem, amt);
-    ass.inv += d;
+    uint d = fund.deposit(asset.gem, amt);
+    asset.inv += d;
 
     emit FundDeposited(name, amt);
   }
 
   function fundWithdraw(bytes32 name, uint amt) external auth nonReentrant {
     require(address(fund) != address(0), "Vault/fund is zero");
-    Ass storage ass = asss[name];
-    uint w = fund.withdraw(ass.gem, amt);
-    if (w > ass.inv) {
-      ass.inv = 0;
+    Asset storage asset = assets[name];
+    uint w = fund.withdraw(asset.gem, amt);
+    if (w > asset.inv) {
+      asset.inv = 0;
     } else {
-      ass.inv = 0;
+      asset.inv = 0;
     }
 
     emit FundWithdrawn(name, amt);
@@ -250,21 +253,21 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
 
   function buyFee(bytes32 name, uint amt) public view returns (uint) {
     uint p = _calcuPersent(name, int(amt));
-    Ass memory ass = asss[name];
-    if (p <= ass.max) {
+    Asset memory asset = assets[name];
+    if (p <= asset.max) {
       return 0;
     }
-    uint exc = p - ass.max;
+    uint exc = p - asset.max;
     return (exc * amt) / ONE * excfee / ONE;
   }
 
   function sellFee(bytes32 name, uint amt) public view returns (uint) {
     uint p = _calcuPersent(name, -int(amt));
-    Ass memory ass = asss[name];
-    if (p >= ass.min) {
+    Asset memory asset = assets[name];
+    if (p >= asset.min) {
       return 0;
     }
-    uint exc = ass.min - p;
+    uint exc = asset.min - p;
     return (exc * amt) / ONE * excfee / ONE;
   }
 
@@ -288,16 +291,15 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     nonReentrant
     returns (uint)
   {
-    Ass memory ass = asss[name];
-    require(ass.max > 0, "Vault/asset not in whitelist");
+    Asset memory asset = assets[name];
+    require(asset.max > 0, "Vault/asset not in whitelist");
 
-    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
-    uint need = out * uint(corePrice()) * dec / uint(assPrice(name)) / ONE;
+    uint need = out * corePrice() / assetPrice(name);
     require(need > 0, "Vault/out amount is invalid");
     uint fee = buyFee(name, need);
     need += fee;
     require(need <= maxIn, "Vault/amount in not enough");
-    IERC20(ass.gem).safeTransferFrom(msg.sender, address(this), need);
+    IERC20(asset.gem).safeTransferFrom(msg.sender, address(this), need);
     core.mint(to, out);
 
     emit Bought(msg.sender, name, to, need, out);
@@ -317,20 +319,19 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     return max;
   }
 
-  // buy tdt, sell amt of ass buy tdt
+  // buy tdt, sell amt of asset buy tdt
   function _buyExactIn(bytes32 name, address to, uint amt, bool useFee) internal returns (uint) {
-    Ass memory ass = asss[name];
-    require(ass.max > 0, "Vault/asset not in whitelist");
+    Asset memory asset = assets[name];
+    require(asset.max > 0, "Vault/asset not in whitelist");
 
     uint fee = 0;
     if (useFee) {
       fee = buyFee(name, amt);
     }
 
-    IERC20(ass.gem).safeTransferFrom(msg.sender, address(this), amt);
+    IERC20(asset.gem).safeTransferFrom(msg.sender, address(this), amt);
 
-    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
-    uint max = uint(assPrice(name)) * (amt - fee) * ONE / uint(corePrice()) / dec;
+    uint max = assetPrice(name) * (amt - fee) / corePrice();
     core.mint(to, max);
 
     return max;
@@ -342,42 +343,40 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     nonReentrant
     returns (uint)
   {
-    Ass memory ass = asss[name];
-    require(ass.max > 0, "Vault/asset not in whitelist");
+    Asset memory asset = assets[name];
+    require(asset.max > 0, "Vault/asset not in whitelist");
 
     uint fee = sellFee(name, out);
-    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
-    uint need = uint(assPrice(name) * int(out + fee)) * ONE / uint(corePrice()) / dec;
+    uint need = assetPrice(name) * (out + fee) / corePrice();
     require(need > 0, "Vault/out amount is invalid");
     require(need <= maxIn, "Vault/amount in is not enough");
 
     core.burn(msg.sender, need);
-    IERC20(ass.gem).safeTransfer(to, out);
+    IERC20(asset.gem).safeTransfer(to, out);
 
     emit Sold(msg.sender, name, to, need, out);
     return need;
   }
 
-  // sell core for ass, amt is tdt amount for sell
+  // sell core for asset, amt is tdt amount for sell
   function sellExactIn(bytes32 name, address to, uint amt, uint minOut)
     external
     whenNotPaused
     nonReentrant
     returns (uint)
   {
-    Ass memory ass = asss[name];
-    require(ass.max > 0, "Vault/asset not in whitelist");
+    Asset memory asset = assets[name];
+    require(asset.max > 0, "Vault/asset not in whitelist");
 
     core.burn(msg.sender, amt);
 
-    uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
-    uint max = uint(corePrice() * int(amt)) * dec / uint(assPrice(name)) / ONE;
+    uint max = corePrice() * amt / assetPrice(name);
 
     uint fee = sellFee(name, max);
     max = max - fee;
     require(max >= minOut, "Vault/amount out is too large");
 
-    IERC20 token = IERC20(ass.gem);
+    IERC20 token = IERC20(asset.gem);
     token.safeTransfer(to, max);
     emit Sold(msg.sender, name, to, amt, max);
     return max;

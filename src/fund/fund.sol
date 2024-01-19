@@ -5,7 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import {IERC20, ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20, ERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "src/auth.sol";
@@ -35,7 +35,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   ISwapNFTManager public swapNFTManager;
   ILendAddressProvider public lendAddressProvider;
 
-  mapping(address => int) usrAveragePrices;
+  mapping(address => uint) usrAveragePrices;
   mapping(address => bool) assWhitelist;
   address[] public assList;
 
@@ -48,7 +48,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     address short;
     uint longAmount;
     uint shortAmount;
-    int marketPrice;
+    uint marketPrice;
     int profit;
   }
 
@@ -59,8 +59,11 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
 
   mapping(address => OracleLike) public oracles;
 
-  uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10; // because oracle price precision is 1e8, we use 1e18
-  uint constant SHRINK_PERP_PRICE_PRECISION = 1e12; // because perp price precision is 1e30, we use 1e18
+  // uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10; // because oracle price precision is 1e8, we use 1e18
+  // uint constant SHRINK_PERP_PRICE_PRECISION = 1e12; // because perp price precision is 1e30, we use 1e18
+  uint public constant PERP_FLOAT_PRECISION = 10 ** 30;
+  uint public constant ORACALE_FLOAT_PRECISION = 10 ** 8;
+  uint constant FLOAT_PRECISION = 10 ** 27;
   uint constant ONE = 1e18;
 
   constructor() ERC20("", "") {}
@@ -160,44 +163,46 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     }
   }
 
-  function assPrice(address asset) public view returns (int) {
+  function assetPrice(address asset) public view returns (uint) {
     OracleLike o = oracles[asset];
     require(address(o) != address(0), "Fund/invalid oracle");
     (, int lasstAnswer,,,) = o.latestRoundData();
-    return lasstAnswer * int(EXPAND_ORACLE_PRICE_PRECISION);
+    require(lasstAnswer > 0, "Fund/invalid price");
+    uint dec = IERC20Metadata(asset).decimals();
+    return uint(lasstAnswer) * (10 ** (19 - dec)); // 10 ** (27 - 8 - dec)
   }
 
   function deposit(address asset, uint amount) external nonReentrant returns (uint) {
     IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-    int ap = assPrice(asset);
-    int p = price();
-    uint m = amount * uint(ap) / uint(p);
+    uint ap = assetPrice(asset);
+    uint p = price();
+    uint m = amount * ap / p;
     uint bal = balanceOf(msg.sender);
-    int avp = usrAveragePrices[msg.sender];
+    uint avp = usrAveragePrices[msg.sender];
     _mint(msg.sender, m);
-    usrAveragePrices[msg.sender] = (avp * int(bal) + int(m) * p) / int(balanceOf(msg.sender));
+    usrAveragePrices[msg.sender] = (avp * bal + m * p) / balanceOf(msg.sender);
     return m;
   }
 
   function withdraw(address asset, uint amount) external nonReentrant {
-    int ap = assPrice(asset);
-    int p = price();
-    uint m = amount * uint(ap) / uint(p);
+    uint ap = assetPrice(asset);
+    uint p = price();
+    uint m = amount * ap / p;
     require(balanceOf(msg.sender) >= m, "Fund/insufficient-balance");
     uint bal = balanceOf(msg.sender);
-    int avp = usrAveragePrices[msg.sender];
+    uint avp = usrAveragePrices[msg.sender];
     _burn(msg.sender, m);
     if (balanceOf(msg.sender) == 0) {
       usrAveragePrices[msg.sender] = 0;
     } else {
-      usrAveragePrices[msg.sender] = (avp * int(bal) - int(m) * p) / int(balanceOf(msg.sender));
+      usrAveragePrices[msg.sender] = (avp * bal - m * p) / balanceOf(msg.sender);
     }
     IERC20(asset).safeTransfer(msg.sender, amount);
   }
 
-  function price() public view returns (int) {
-    uint v = totalValue();
-    return int(v / totalSupply());
+  function price() public view returns (uint) {
+    uint v = totalValue() * ONE;
+    return v / totalSupply();
   }
 
   function totalValue() public view returns (uint) {
@@ -206,7 +211,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     for (uint i = 0; i < asslen; ++i) {
       address ass = assList[i];
       uint bal = IERC20(ass).balanceOf(address(this));
-      v += uint(assPrice(ass)) * bal;
+      v += assetPrice(ass) * bal;
     }
     v += lendValue();
     v += swapValue();
@@ -234,7 +239,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   function perpGetMarketTokenPrice(address[3] memory tokens, uint[3] memory prices)
     public
     view
-    returns (int)
+    returns (uint)
   {
     bytes32 salt = perpGenMarketSalt(tokens[0], tokens[1], tokens[2]);
     IPerpMarket.MarketProps memory mprops = IPerpMarket.MarketProps({
@@ -252,7 +257,8 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     (int mtPrice,) = perpReader.getMarketTokenPrice(
       perpDataStore, mprops, indexPrice, longPrice, shortPrice, MAX_PNL_FACTOR_FOR_TRADERS, true
     );
-    return mtPrice / int(SHRINK_PERP_PRICE_PRECISION);
+    require(mtPrice > 0, "Fund/invalid market price");
+    return uint(mtPrice) / 1000; // 10 ** 3
   }
 
   function perpDepositCallback(bytes32, PerpMarket memory market, uint) external auth {
@@ -270,18 +276,17 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     PerpMarket storage m = perpMarkets[market];
     IPerpMarket.MarketProps memory mprops = perpGetMarket(market);
     address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
-    int[3] memory prices =
-      [assPrice(mprops.indexToken), assPrice(mprops.longToken), assPrice(mprops.shortToken)];
+    uint[3] memory prices =
+      [assetPrice(mprops.indexToken), assetPrice(mprops.longToken), assetPrice(mprops.shortToken)];
     uint[3] memory perpPrices =
       [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
-    m.marketPrice = int(perpGetMarketTokenPrice(tokens, perpPrices));
+    m.marketPrice = perpGetMarketTokenPrice(tokens, perpPrices);
     uint bal = IERC20(market).balanceOf(address(this));
-    m.profit =
-      m.marketPrice * int(bal) - (int(m.longAmount) * prices[1] + int(m.shortAmount) * prices[2]);
+    m.profit = int(m.marketPrice * bal) - int(m.longAmount * prices[1] + m.shortAmount * prices[2]);
   }
 
-  function toPerpPrice(int price_) public pure returns (uint) {
-    return uint(price_) * SHRINK_PERP_PRICE_PRECISION;
+  function toPerpPrice(uint price_) public pure returns (uint) {
+    return price_ * (10 ** 3);
   }
 
   function perpCancelDepositCallback(bytes32 key) external auth {}
@@ -401,12 +406,12 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
       address mt = perpMarketList[i];
       IPerpMarket.MarketProps memory mprops = perpGetMarket(mt);
       address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
-      int[3] memory prices =
-        [assPrice(mprops.indexToken), assPrice(mprops.longToken), assPrice(mprops.shortToken)];
+      uint[3] memory prices =
+        [assetPrice(mprops.indexToken), assetPrice(mprops.longToken), assetPrice(mprops.shortToken)];
       uint[3] memory perpPrices =
         [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
-      int mtPrice = perpGetMarketTokenPrice(tokens, perpPrices);
-      v += uint(mtPrice) * IERC20(mt).balanceOf(address(this));
+      uint mtPrice = perpGetMarketTokenPrice(tokens, perpPrices);
+      v += mtPrice * IERC20(mt).balanceOf(address(this));
     }
     return v;
   }
@@ -525,8 +530,8 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
       (, address pool,,,,,) = swapMasterChef.poolInfo(pid);
       (int amount0, int amount1) =
         SwapLiquidity.swapLiquidity(pool, int128(liquidity), tickLower, tickUpper);
-      v += uint(assPrice(t0)) * (uint(amount0) + tokensOwned0);
-      v += uint(assPrice(t1)) * (uint(amount1) + tokensOwned1);
+      v += assetPrice(t0) * (uint(amount0) + tokensOwned0);
+      v += assetPrice(t1) * (uint(amount1) + tokensOwned1);
     }
     return v;
   }
@@ -551,7 +556,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     uint asslen = assList.length;
     for (uint i = 0; i < asslen; ++i) {
       address ass = assList[i];
-      v += uint(assPrice(ass)) * lendBalance(ass);
+      v += assetPrice(ass) * lendBalance(ass);
     }
     return v;
   }

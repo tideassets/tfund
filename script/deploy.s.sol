@@ -397,7 +397,7 @@ contract DeployScript is Script {
     console2.log("_setUp_init_vault", b32_S(key));
     Vault vault = Vault(registry.addresses(key));
     uint len = names.length;
-    Vault.Ass[] memory asss = new Vault.Ass[](len);
+    Vault.Asset[] memory assets = new Vault.Asset[](len);
     uint[] memory amts = new uint[](len);
     for (uint i = 0; i < len; i++) {
       bytes32 name = names[i];
@@ -408,7 +408,7 @@ contract DeployScript is Script {
         amts[i] = ONE / 10; // no enough eth
       }
       IERC20(gem).approve(address(vault), amts[i]);
-      asss[i] = Vault.Ass({
+      assets[i] = Vault.Asset({
         min: 0,
         max: 80 * ONE / 100,
         out: 50 * ONE / 100,
@@ -419,7 +419,7 @@ contract DeployScript is Script {
       console2.log("gem:", b32_S(name), gem, amts[i]);
     }
 
-    vault.init(names, asss);
+    vault.init(names, assets);
     vault.init(names, amts);
   }
 
@@ -539,7 +539,7 @@ contract DeployScript is Script {
     uint len = names.length;
     for (uint i = 0; i < len; i++) {
       bytes32 name = names[i];
-      address gem = gems[name];
+      // address gem = gems[name];
       // uint dec = 10 ** IERC20Metadata(gem).decimals();
 
       string memory nameS = b32_S(name);
