@@ -41,11 +41,6 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     address oracle; // price oracle
   }
 
-  struct Inv {
-    uint max; // max persent
-    uint amt; // amount
-  }
-
   bytes32[] public assList;
   mapping(bytes32 name => uint index) assIndexs;
   mapping(bytes32 name => Ass) public asss;
@@ -59,6 +54,18 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   uint constant ONE = 1e18;
   // oracal price precision is 1e8, we use 1e18, so must expend 1e10
   uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10;
+
+  // events
+  event InitAssets(bytes32[] names, Ass[] assets);
+  event InitBuying(bytes32[] names, uint[] amts);
+  event Filed(bytes32 indexed who, bytes32 indexed what, uint data);
+  event Filed(bytes32 indexed who, bytes32 indexed what, address data);
+  event Filed(bytes32 indexed what, address data);
+  event Filed(bytes32 indexed what, uint data);
+  event FundDeposited(bytes32 indexed name, uint amt);
+  event FundWithdrawn(bytes32 indexed name, uint amt);
+  event Bought(address indexed u, bytes32 indexed name, address to, uint in_, uint out);
+  event Sold(address indexed u, bytes32 indexed name, address to, uint in_, uint out);
 
   function initialize(address core_) public initializer {
     wards[msg.sender] = 1;
@@ -84,15 +91,12 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     return assList.length;
   }
 
-  function setFee(uint fee_) external auth {
-    excfee = fee_;
-  }
-
   function init(bytes32[] calldata names, Ass[] calldata assets) external auth {
     for (uint i = 0; i < names.length; ++i) {
       asss[names[i]] = assets[i];
       _file(names[i], false);
     }
+    emit InitAssets(names, assets);
   }
 
   function _file(bytes32 who, bool rm) internal {
@@ -128,6 +132,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     } else {
       revert("Vault/file-unrecognized-param");
     }
+    emit Filed(who, what, data);
   }
 
   function file(bytes32 who, bytes32 what, address data) external auth whenNotPaused {
@@ -139,6 +144,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
       revert("Vault/file-unrecognized-param");
     }
     _file(who, what == "gem" && data == address(0));
+    emit Filed(who, what, data);
   }
 
   function file(bytes32 what, address data) external auth whenNotPaused {
@@ -150,6 +156,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     } else {
       revert("Vault/file-unrecognized-param");
     }
+    emit Filed(what, data);
   }
 
   function file(bytes32 what, uint data) external auth whenNotPaused {
@@ -158,6 +165,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     } else {
       revert("Vault/file-unrecognized-param");
     }
+    emit Filed(what, data);
   }
 
   function assetAmount(bytes32 name) public view returns (uint) {
@@ -223,6 +231,8 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     token.forceApprove(address(fund), amt);
     uint d = fund.deposit(ass.gem, amt);
     ass.inv += d;
+
+    emit FundDeposited(name, amt);
   }
 
   function fundWithdraw(bytes32 name, uint amt) external auth nonReentrant {
@@ -234,6 +244,8 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     } else {
       ass.inv = 0;
     }
+
+    emit FundWithdrawn(name, amt);
   }
 
   function buyFee(bytes32 name, uint amt) public view returns (uint) {
@@ -266,6 +278,8 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     for (uint i = 0; i < names.length; i++) {
       _buyExactIn(names[i], msg.sender, amts_[i], false);
     }
+
+    emit InitBuying(names, amts_);
   }
 
   function buyExactOut(bytes32 name, address to, uint maxIn, uint out)
@@ -279,11 +293,14 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
 
     uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
     uint need = out * uint(corePrice()) * dec / uint(assPrice(name)) / ONE;
+    require(need > 0, "Vault/out amount is invalid");
     uint fee = buyFee(name, need);
     need += fee;
     require(need <= maxIn, "Vault/amount in not enough");
     IERC20(ass.gem).safeTransferFrom(msg.sender, address(this), need);
     core.mint(to, out);
+
+    emit Bought(msg.sender, name, to, need, out);
     return need;
   }
 
@@ -295,6 +312,8 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
   {
     uint max = _buyExactIn(name, to, amt, true);
     require(max >= minOut, "Vault/amount out is too large");
+
+    emit Bought(msg.sender, name, to, amt, max);
     return max;
   }
 
@@ -329,10 +348,13 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
     uint fee = sellFee(name, out);
     uint dec = 10 ** IERC20Metadata(ass.gem).decimals();
     uint need = uint(assPrice(name) * int(out + fee)) * ONE / uint(corePrice()) / dec;
+    require(need > 0, "Vault/out amount is invalid");
     require(need <= maxIn, "Vault/amount in is not enough");
 
     core.burn(msg.sender, need);
     IERC20(ass.gem).safeTransfer(to, out);
+
+    emit Sold(msg.sender, name, to, need, out);
     return need;
   }
 
@@ -357,6 +379,7 @@ contract Vault is Auth, Initializable, ReentrancyGuard {
 
     IERC20 token = IERC20(ass.gem);
     token.safeTransfer(to, max);
+    emit Sold(msg.sender, name, to, amt, max);
     return max;
   }
 }

@@ -25,16 +25,6 @@ interface OracleLike {
 contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   using SafeERC20 for IERC20;
 
-  struct InitAddresses {
-    address perpExRouter;
-    address perpDataStore;
-    address perpReader;
-    address perpDepositVault;
-    address perpRouter;
-    address swapMasterChef;
-    address lendAddressProvider;
-  }
-
   address perpCallback;
   address perpDataStore;
   address perpDepositVault;
@@ -75,20 +65,28 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
 
   constructor() ERC20("", "") {}
 
-  function initialize(InitAddresses calldata addrs) external initializer {
+  function initialize(
+    address swapMasterChef_,
+    address lendAddressProvider_,
+    address perpExRouter_,
+    address perpDataStore_,
+    address perpReader_,
+    address perpDepositVault_,
+    address perpRouter_
+  ) external initializer {
     wards[msg.sender] = 1;
-    perpExRouter = IPerpExRouter(addrs.perpExRouter);
-    perpReader = IPerpReader(addrs.perpReader);
-    perpDataStore = addrs.perpDataStore;
-    perpDepositVault = addrs.perpDepositVault;
-    perpRouter = addrs.perpRouter;
+    perpExRouter = IPerpExRouter(perpExRouter_);
+    perpReader = IPerpReader(perpReader_);
+    perpDataStore = perpDataStore_;
+    perpDepositVault = perpDepositVault_;
+    perpRouter = perpRouter_;
     perpCallback = address(new PerpCallback(address(this)));
     wards[perpCallback] = 1;
 
-    swapMasterChef = ISwapMasterChef(addrs.swapMasterChef);
+    swapMasterChef = ISwapMasterChef(swapMasterChef_);
     swapNFTManager = ISwapNFTManager(swapMasterChef.nonfungiblePositionManager());
 
-    lendAddressProvider = ILendAddressProvider(addrs.lendAddressProvider);
+    lendAddressProvider = ILendAddressProvider(lendAddressProvider_);
   }
 
   function name() public pure override returns (string memory) {

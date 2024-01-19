@@ -2,8 +2,12 @@
 pragma solidity ^0.8.13;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {TransparentUpgradeableProxy} from
-  "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+  TransparentUpgradeableProxy,
+  ITransparentUpgradeableProxy,
+  ERC1967Utils,
+  ProxyAdmin
+} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TToken} from "src/token.sol";
 import {Vault, IERC20Metadata} from "src/vault.sol";
 import {Locker} from "src/lock.sol";
@@ -420,14 +424,22 @@ contract DeployScript is Script {
   }
 
   function _setUp_vault_init() internal {
-    _set_gems();
-    _set_oracles();
     _setUp_init_vault(_TDT_tokensName(), registry.TDT_VAULT());
     _setUp_init_vault(_sTCA_tokensName(), registry.TCAS_VAULT());
     _setUp_init_vault(_vTCA_tokensName(), registry.TCAV_VAULT());
   }
 
-  function _readFundParams() internal view returns (Fund.InitAddresses memory addrs) {
+  struct InitAddresses {
+    address perpExRouter;
+    address perpDataStore;
+    address perpReader;
+    address perpDepositVault;
+    address perpRouter;
+    address swapMasterChef;
+    address lendAddressProvider;
+  }
+
+  function _readFundParams() internal view returns (InitAddresses memory addrs) {
     addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
     addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
     addrs.perpReader = vm.envAddress("PERP_READER");
@@ -456,20 +468,20 @@ contract DeployScript is Script {
   }
 
   function _setUpFund() internal {
-    Fund.InitAddresses memory inputs = _readFundParams();
+    InitAddresses memory inputs = _readFundParams();
     Fund fund = new Fund();
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(fund),
       deployer,
       abi.encodeWithSignature(
         "initialize(address,address,address,address,address,address,address)",
+        inputs.swapMasterChef,
+        inputs.lendAddressProvider,
         inputs.perpExRouter,
         inputs.perpDataStore,
         inputs.perpReader,
         inputs.perpDepositVault,
-        inputs.perpRouter,
-        inputs.swapMasterChef,
-        inputs.lendAddressProvider
+        inputs.perpRouter
       )
     );
     registry.file(registry.FUND(), address(proxy));
@@ -502,7 +514,7 @@ contract DeployScript is Script {
     // _setUpFund();
   }
 
-  function _run() internal {
+  function _run() internal virtual {
     vm.startBroadcast(deployer);
     address registry_ = vm.envAddress("REGISTRY");
     if (registry_ == address(0)) {
@@ -512,12 +524,12 @@ contract DeployScript is Script {
     }
     address fund_ = registry.addresses(registry.FUND());
     if (fund_ == address(0)) {
-      // _setUpFund();
+      _setUpFund();
     }
     vm.stopBroadcast();
   }
 
-  function _before() internal {
+  function _before() internal virtual {
     deployer = vm.rememberKey(vm.envUint("PRIVATE_KEY"));
     endpoint = vm.envAddress("LAYERZERO_ENDPOINT");
     chainId = vm.envUint("CHAIN_ID");
@@ -525,6 +537,9 @@ contract DeployScript is Script {
     testnet = vm.envBool("TESTNET");
 
     VAULT_INIT_AMOUNT = vm.envUint("VAULT_INIT_AMOUNT");
+
+    _set_gems();
+    _set_oracles();
   }
 
   function run() public virtual {
@@ -533,7 +548,7 @@ contract DeployScript is Script {
     _after();
   }
 
-  function _after() internal {
+  function _after() internal virtual {
     vm.startBroadcast(deployer);
     if (testnet) {
       _test_vault();
@@ -586,7 +601,7 @@ contract DeployScript is Script {
       console2.log("Vault balance", nameS, tdtVault.assetAmount(name));
       console2.log("Vault value", nameS, tdtVault.assetValue(name));
 
-      // tdtVault.fundDeposit(name, amt_in);
+      tdtVault.fundDeposit(name, amt_in);
     }
   }
 
@@ -596,5 +611,28 @@ contract DeployScript is Script {
       return;
     }
     console2.log("Fund price and total value", uint(fund.price()), fund.totalValue());
+  }
+}
+
+contract VaultUpgradeScript is DeployScript {
+  function _upgrade(address proxy, address newImpl, bytes memory data) internal {
+    bytes32 adminSlot = vm.load(proxy, ERC1967Utils.ADMIN_SLOT);
+    if (adminSlot == bytes32(0)) {
+      // No admin contract: upgrade directly using interface
+      ITransparentUpgradeableProxy(proxy).upgradeToAndCall(newImpl, data);
+    } else {
+      ProxyAdmin admin = ProxyAdmin(address(uint160(uint(adminSlot))));
+      admin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), newImpl, data);
+    }
+  }
+
+  function _run() internal virtual override {
+    super._run();
+    vm.startBroadcast(deployer);
+    Vault newVaultImpl = new Vault();
+    _upgrade(registry.addresses(registry.TDT_VAULT()), address(newVaultImpl), "");
+    _upgrade(registry.addresses(registry.TCAS_VAULT()), address(newVaultImpl), "");
+    _upgrade(registry.addresses(registry.TCAV_VAULT()), address(newVaultImpl), "");
+    vm.stopBroadcast();
   }
 }
