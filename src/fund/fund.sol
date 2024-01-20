@@ -36,8 +36,8 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   ILendAddressProvider public lendAddressProvider;
 
   mapping(address => uint) usrAveragePrices;
-  mapping(address => bool) assWhitelist;
-  address[] public assList;
+  mapping(address => bool) assetWhiteList;
+  address[] public assetList;
 
   uint[] public nftIds;
   mapping(uint => uint) public nftIdsIndex;
@@ -59,8 +59,6 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
 
   mapping(address => OracleLike) public oracles;
 
-  // uint constant EXPAND_ORACLE_PRICE_PRECISION = 1e10; // because oracle price precision is 1e8, we use 1e18
-  // uint constant SHRINK_PERP_PRICE_PRECISION = 1e12; // because perp price precision is 1e30, we use 1e18
   uint public constant PERP_FLOAT_PRECISION = 10 ** 30;
   uint public constant ORACALE_FLOAT_PRECISION = 10 ** 8;
   uint constant FLOAT_PRECISION = 10 ** 27;
@@ -127,24 +125,24 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   function init(address[] calldata assets, address[] calldata oracles_) external auth {
     require(assets.length == oracles_.length, "Fund/invalid length");
     for (uint i = 0; i < assets.length; ++i) {
-      assWhitelist[assets[i]] = true;
+      assetWhiteList[assets[i]] = true;
       oracles[assets[i]] = OracleLike(oracles_[i]);
-      assList.push(assets[i]);
+      assetList.push(assets[i]);
     }
   }
 
   function file(bytes32 what, address who, bool data) public auth {
     if (what == "asset") {
-      bool old = assWhitelist[who];
+      bool old = assetWhiteList[who];
       if (data != old) {
-        assWhitelist[who] = data;
+        assetWhiteList[who] = data;
         if (data) {
-          assList.push(who);
+          assetList.push(who);
         } else {
-          for (uint i = 0; i < assList.length; ++i) {
-            if (assList[i] == who) {
-              assList[i] = assList[assList.length - 1];
-              assList.pop();
+          for (uint i = 0; i < assetList.length; ++i) {
+            if (assetList[i] == who) {
+              assetList[i] = assetList[assetList.length - 1];
+              assetList.pop();
               break;
             }
           }
@@ -206,10 +204,10 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   }
 
   function totalValue() public view returns (uint) {
-    uint asslen = assList.length;
+    uint asslen = assetList.length;
     uint v = 0;
     for (uint i = 0; i < asslen; ++i) {
-      address ass = assList[i];
+      address ass = assetList[i];
       uint bal = IERC20(ass).balanceOf(address(this));
       v += assetPrice(ass) * bal;
     }
@@ -286,7 +284,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   }
 
   function toPerpPrice(uint price_) public pure returns (uint) {
-    return price_ * (10 ** 3);
+    return price_ * (10 ** 3); // perp price is 10 ** 30, we use 10 ** 27
   }
 
   function perpCancelDepositCallback(bytes32 key) external auth {}
@@ -553,9 +551,9 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
 
   function lendValue() public view returns (uint) {
     uint v = 0;
-    uint asslen = assList.length;
+    uint asslen = assetList.length;
     for (uint i = 0; i < asslen; ++i) {
-      address ass = assList[i];
+      address ass = assetList[i];
       v += assetPrice(ass) * lendBalance(ass);
     }
     return v;

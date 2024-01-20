@@ -578,9 +578,10 @@ contract VaultUpgradeScript is DeployScript {
 
   function _after() internal virtual override {
     // todo
-    vm.startBroadcast(deployer);
-    _test_vault_sell();
-    vm.stopBroadcast();
+    // vm.startBroadcast(deployer);
+    // _test_vault_sell();
+    // vm.stopBroadcast();
+    super._after();
   }
 
   function _run() internal virtual override {
