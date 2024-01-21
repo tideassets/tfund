@@ -449,7 +449,6 @@ contract DeployScript is Script {
 
   function _run() internal virtual {
     vm.startBroadcast(deployer);
-    address registry_ = vm.envAddress("REGISTRY");
     if (registry_ == address(0)) {
       _setUp();
     } else {
@@ -466,6 +465,7 @@ contract DeployScript is Script {
     testnet = vm.envBool("TESTNET");
 
     VAULT_INIT_AMOUNT = vm.envUint("VAULT_INIT_AMOUNT");
+    address registry_ = vm.envAddress("REGISTRY");
 
     _set_gems();
     _set_oracles();

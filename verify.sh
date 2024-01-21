@@ -4,4 +4,4 @@
 source .env
 
 # 执行命令
-node verify.js broadcast/deploy.s.sol/421614/run-latest.json
+node verify.js broadcast/$1.s.sol/421614/run-latest.json

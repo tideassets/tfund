@@ -15,15 +15,7 @@ contract DeployFundScript is DeployScript {
     address lendAddressProvider;
   }
 
-  function _readFundParams() internal view returns (InitAddresses memory addrs) {
-    addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
-    addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
-    addrs.perpReader = vm.envAddress("PERP_READER");
-    addrs.perpDepositVault = vm.envAddress("PERP_DEPOSIT_VAULT");
-    addrs.perpRouter = vm.envAddress("PERP_ROUTER");
-    addrs.swapMasterChef = vm.envAddress("SWAP_MASTER_CHEF");
-    addrs.lendAddressProvider = vm.envAddress("LEND_ADDRESS_PROVIDER");
-  }
+  InitAddresses addrs;
 
   function _fund_oracles() internal view returns (address[] memory oracles_) {
     bytes32[] memory names = _TDT_tokensName();
@@ -72,8 +64,23 @@ contract DeployFundScript is DeployScript {
     vTCAVault.file("Fund", address(tFund));
   }
 
+  function _before() internal virtual override {
+    super._before();
+    addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
+    addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
+    addrs.perpReader = vm.envAddress("PERP_READER");
+    addrs.perpDepositVault = vm.envAddress("PERP_DEPOSIT_VAULT");
+    addrs.perpRouter = vm.envAddress("PERP_ROUTER");
+    addrs.swapMasterChef = vm.envAddress("SWAP_MASTER_CHEF");
+    addrs.lendAddressProvider = vm.envAddress("LEND_ADDRESS_PROVIDER");
+  }
+
   function _run() internal virtual override {
     super._run();
     _setUpFund();
+  }
+
+  function _after() internal virtual override {
+    // todo
   }
 }
