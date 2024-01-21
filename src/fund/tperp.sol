@@ -5,7 +5,7 @@
 pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import {IERC20, ERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auth} from "src/auth.sol";
@@ -16,7 +16,7 @@ interface IPricer {
   function assetPrice(address asset) external view returns (uint);
 }
 
-contract TPerpRouter is Initializable, Auth, ReentrancyGuard {
+contract PerpRouter is Initializable, Auth, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
   address perpCallback;
@@ -37,10 +37,10 @@ contract TPerpRouter is Initializable, Auth, ReentrancyGuard {
     int profit;
   }
 
-  uint public constant PERP_FLOAT_PRECISION = 10 ** 30;
-  uint public constant ORACALE_FLOAT_PRECISION = 10 ** 8;
-  uint constant FLOAT_PRECISION = 10 ** 27;
-  uint constant ONE = 1e18;
+  // uint public constant PERP_FLOAT_PRECISION = 10 ** 30;
+  // uint public constant ORACALE_FLOAT_PRECISION = 10 ** 8;
+  // uint constant FLOAT_PRECISION = 10 ** 27;
+  // uint constant ONE = 1e18;
 
   address[] public perpMarketList;
   mapping(address => PerpMarket) public perpMarkets;

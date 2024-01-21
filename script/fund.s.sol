@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Script, console2} from "forge-std/Script.sol";
+import {PerpRouter} from "src/fund/tperp.sol";
 import "./deploy.s.sol";
 
 contract DeployFundScript is DeployScript {
@@ -16,6 +17,7 @@ contract DeployFundScript is DeployScript {
   }
 
   InitAddresses addrs;
+  address perpRouterProxy;
 
   function _fund_oracles() internal view returns (address[] memory oracles_) {
     bytes32[] memory names = _TDT_tokensName();
@@ -35,16 +37,14 @@ contract DeployFundScript is DeployScript {
     }
   }
 
-  function _setUpFund() internal {
+  function _setUpPerp() internal {
     InitAddresses memory inputs = addrs;
-    Fund fund = new Fund();
+    PerpRouter router = new PerpRouter();
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-      address(fund),
+      address(router),
       deployer,
       abi.encodeWithSignature(
-        "initialize(address,address,address,address,address,address,address)",
-        inputs.swapMasterChef,
-        inputs.lendAddressProvider,
+        "initialize(address,address,address,address,address)",
         inputs.perpExRouter,
         inputs.perpDataStore,
         inputs.perpReader,
@@ -52,9 +52,26 @@ contract DeployFundScript is DeployScript {
         inputs.perpRouter
       )
     );
+    perpRouterProxy = address(proxy);
+  }
+
+  function _setUpFund() internal {
+    InitAddresses memory inputs = addrs;
+    Fund fund = new Fund();
+    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+      address(fund),
+      deployer,
+      abi.encodeWithSignature(
+        "initialize(address,address,address)",
+        inputs.swapMasterChef,
+        inputs.lendAddressProvider,
+        perpRouterProxy
+      )
+    );
     registry.file(registry.FUND(), address(proxy));
     Fund tFund = Fund(registry.addresses(registry.FUND()));
     tFund.init(_fund_tokens(), _fund_oracles());
+    PerpRouter(perpRouterProxy).file("pricer", address(tFund));
 
     Vault tdtVault = Vault(registry.addresses(registry.TDT_VAULT()));
     Vault sTCAVault = Vault(registry.addresses(registry.TCAS_VAULT()));
@@ -80,6 +97,7 @@ contract DeployFundScript is DeployScript {
 
   function _run() internal virtual override {
     vm.startBroadcast(deployer);
+    _setUpPerp();
     _setUpFund();
     vm.stopBroadcast();
   }
