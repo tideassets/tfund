@@ -365,9 +365,6 @@ contract DeployScript is Script {
     gems["BAT"] = 0x27880d3ff48265b15FacA7109070be82eC9c861b;
     gems["UNI"] = 0xCB774CF40CfFc88190d27D5c628094d2ca5650B4;
     gems["MATIC"] = 0x6308A5473106B3b178bD8bDa1eFe4F5E930D957D;
-
-    address weth = gems["WETH"];
-    WETH9_(payable(weth)).deposit{value: 1 ether}();
   }
 
   function eqS(string memory a, string memory b) internal pure returns (bool) {
@@ -388,6 +385,11 @@ contract DeployScript is Script {
     } else {
       revert("DeployScript/_getGems: network not supported");
     }
+  }
+
+  function _weth_deposit() internal {
+    address weth = gems["WETH"];
+    WETH9_(payable(weth)).deposit{value: 1 ether}();
   }
 
   uint public constant ONE = 10 ** 18;
@@ -424,6 +426,7 @@ contract DeployScript is Script {
   }
 
   function _setUp_vault_init() internal {
+    _weth_deposit();
     _setUp_init_vault(_TDT_tokensName(), registry.TDT_VAULT());
     _setUp_init_vault(_sTCA_tokensName(), registry.TCAS_VAULT());
     _setUp_init_vault(_vTCA_tokensName(), registry.TCAV_VAULT());
@@ -449,10 +452,8 @@ contract DeployScript is Script {
 
   function _run() internal virtual {
     vm.startBroadcast(deployer);
-    if (registry_ == address(0)) {
+    if (address(registry) == address(0)) {
       _setUp();
-    } else {
-      registry = Registry(registry_);
     }
     vm.stopBroadcast();
   }
@@ -465,7 +466,6 @@ contract DeployScript is Script {
     testnet = vm.envBool("TESTNET");
 
     VAULT_INIT_AMOUNT = vm.envUint("VAULT_INIT_AMOUNT");
-    address registry_ = vm.envAddress("REGISTRY");
 
     _set_gems();
     _set_oracles();
@@ -477,14 +477,7 @@ contract DeployScript is Script {
     _after();
   }
 
-  function _after() internal virtual {
-    vm.startBroadcast(deployer);
-    if (testnet) {
-      _test_vault();
-      _test_fund();
-    }
-    vm.stopBroadcast();
-  }
+  function _after() internal virtual {}
 
   function b32_S(bytes32 _bytes32) public pure returns (string memory) {
     uint8 i = 0;
@@ -577,11 +570,15 @@ contract VaultUpgradeScript is DeployScript {
   }
 
   function _after() internal virtual override {
-    // todo
-    // vm.startBroadcast(deployer);
-    // _test_vault_sell();
-    // vm.stopBroadcast();
-    super._after();
+    vm.startBroadcast(deployer);
+    _test_vault();
+    vm.stopBroadcast();
+  }
+
+  function _before() internal virtual override {
+    super._before();
+    address registry_ = vm.envAddress("REGISTRY");
+    registry = Registry(registry_);
   }
 
   function _run() internal virtual override {

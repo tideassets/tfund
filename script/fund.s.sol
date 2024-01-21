@@ -36,7 +36,7 @@ contract DeployFundScript is DeployScript {
   }
 
   function _setUpFund() internal {
-    InitAddresses memory inputs = _readFundParams();
+    InitAddresses memory inputs = addrs;
     Fund fund = new Fund();
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(fund),
@@ -66,6 +66,9 @@ contract DeployFundScript is DeployScript {
 
   function _before() internal virtual override {
     super._before();
+    address registry_ = vm.envAddress("REGISTRY");
+    registry = Registry(registry_);
+
     addrs.perpExRouter = vm.envAddress("PERP_EX_ROUTER");
     addrs.perpDataStore = vm.envAddress("PERP_DATA_STORE");
     addrs.perpReader = vm.envAddress("PERP_READER");
@@ -76,11 +79,16 @@ contract DeployFundScript is DeployScript {
   }
 
   function _run() internal virtual override {
-    super._run();
+    vm.startBroadcast(deployer);
     _setUpFund();
+    vm.stopBroadcast();
   }
 
   function _after() internal virtual override {
-    // todo
+    vm.startBroadcast(deployer);
+    if (testnet) {
+      // _test_fund();
+    }
+    vm.stopBroadcast();
   }
 }

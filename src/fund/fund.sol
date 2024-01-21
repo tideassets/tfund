@@ -22,18 +22,29 @@ interface OracleLike {
     returns (uint80 roundId, int answer, uint startedAt, uint updatedAt, uint80 answeredInRound);
 }
 
+interface IPerpRouter {
+  function perpValue() external view returns (uint);
+  function perpDeposit(
+    address market,
+    address long,
+    address short,
+    uint longAmount,
+    uint shortAmount,
+    uint execFee
+  ) external returns (bytes32 key);
+
+  function perpWithdraw(address market, uint longAmount, uint shortAmount, uint execFee)
+    external
+    returns (bytes32 key);
+}
+
 contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   using SafeERC20 for IERC20;
 
-  address perpCallback;
-  address perpDataStore;
-  address perpDepositVault;
-  address perpRouter;
-  IPerpExRouter public perpExRouter;
-  IPerpReader public perpReader;
   ISwapMasterChef public swapMasterChef;
   ISwapNFTManager public swapNFTManager;
   ILendAddressProvider public lendAddressProvider;
+  IPerpRouter public perpRouter;
 
   mapping(address => uint) usrAveragePrices;
   mapping(address => bool) assetWhiteList;
@@ -41,21 +52,6 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
 
   uint[] public nftIds;
   mapping(uint => uint) public nftIdsIndex;
-
-  struct PerpMarket {
-    address market;
-    address long;
-    address short;
-    uint longAmount;
-    uint shortAmount;
-    uint marketPrice;
-    int profit;
-  }
-
-  address[] public perpMarketList;
-  mapping(address => PerpMarket) public perpMarkets;
-  bytes32 public constant MAX_PNL_FACTOR_FOR_TRADERS =
-    keccak256(abi.encode("MAX_PNL_FACTOR_FOR_TRADERS"));
 
   mapping(address => OracleLike) public oracles;
 
@@ -66,28 +62,16 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
 
   constructor() ERC20("", "") {}
 
-  function initialize(
-    address swapMasterChef_,
-    address lendAddressProvider_,
-    address perpExRouter_,
-    address perpDataStore_,
-    address perpReader_,
-    address perpDepositVault_,
-    address perpRouter_
-  ) external initializer {
+  function initialize(address swapMasterChef_, address lendAddressProvider_, address perpRouter_)
+    external
+    initializer
+  {
     wards[msg.sender] = 1;
-    perpExRouter = IPerpExRouter(perpExRouter_);
-    perpReader = IPerpReader(perpReader_);
-    perpDataStore = perpDataStore_;
-    perpDepositVault = perpDepositVault_;
-    perpRouter = perpRouter_;
-    perpCallback = address(new PerpCallback(address(this)));
-    wards[perpCallback] = 1;
 
     swapMasterChef = ISwapMasterChef(swapMasterChef_);
     swapNFTManager = ISwapNFTManager(swapMasterChef.nonfungiblePositionManager());
-
     lendAddressProvider = ILendAddressProvider(lendAddressProvider_);
+    perpRouter = IPerpRouter(perpRouter_);
   }
 
   function name() public pure override returns (string memory) {
@@ -99,19 +83,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
   }
 
   function file(bytes32 what, address data) external auth {
-    if (what == "perpRouter") {
-      perpRouter = data;
-    } else if (what == "perpDepositVault") {
-      perpDepositVault = data;
-    } else if (what == "perpCallback") {
-      perpCallback = data;
-    } else if (what == "perpDataStore") {
-      perpDataStore = data;
-    } else if (what == "perpExRouter") {
-      perpExRouter = IPerpExRouter(data);
-    } else if (what == "perpReader") {
-      perpReader = IPerpReader(data);
-    } else if (what == "swapMasterChef") {
+    if (what == "swapMasterChef") {
       swapMasterChef = ISwapMasterChef(data);
     } else if (what == "swapNFTManager") {
       swapNFTManager = ISwapNFTManager(data);
@@ -213,204 +185,7 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
     }
     v += lendValue();
     v += swapValue();
-    v += perpValue();
-    return v;
-  }
-
-  function perpGenMarketSalt(address index, address long, address short)
-    public
-    pure
-    returns (bytes32 salt)
-  {
-    salt = keccak256(abi.encode("GMX_MARKET", index, long, short, "base-v1"));
-  }
-
-  function perpGetMarket(bytes32 salt) public view returns (address) {
-    IPerpMarket.MarketProps memory market = perpReader.getMarketBySalt(perpDataStore, salt);
-    return market.marketToken;
-  }
-
-  function perpGetMarket(address market) public view returns (IPerpMarket.MarketProps memory) {
-    return perpReader.getMarket(perpDataStore, market);
-  }
-
-  function perpGetMarketTokenPrice(address[3] memory tokens, uint[3] memory prices)
-    public
-    view
-    returns (uint)
-  {
-    bytes32 salt = perpGenMarketSalt(tokens[0], tokens[1], tokens[2]);
-    IPerpMarket.MarketProps memory mprops = IPerpMarket.MarketProps({
-      marketToken: perpGetMarket(salt),
-      indexToken: tokens[0],
-      longToken: tokens[1],
-      shortToken: tokens[2]
-    });
-    IPerpMarket.PriceProps memory indexPrice =
-      IPerpMarket.PriceProps({min: prices[0], max: prices[0]});
-    IPerpMarket.PriceProps memory longPrice =
-      IPerpMarket.PriceProps({min: prices[1], max: prices[1]});
-    IPerpMarket.PriceProps memory shortPrice =
-      IPerpMarket.PriceProps({min: prices[2], max: prices[2]});
-    (int mtPrice,) = perpReader.getMarketTokenPrice(
-      perpDataStore, mprops, indexPrice, longPrice, shortPrice, MAX_PNL_FACTOR_FOR_TRADERS, true
-    );
-    require(mtPrice > 0, "Fund/invalid market price");
-    return uint(mtPrice) / 1000; // 10 ** 3
-  }
-
-  function perpDepositCallback(bytes32, PerpMarket memory market, uint) external auth {
-    PerpMarket storage m = perpMarkets[market.market];
-    if (m.market == address(0)) {
-      perpMarketList.push(market.market);
-    }
-    market.longAmount += m.longAmount;
-    market.shortAmount += m.shortAmount;
-    perpMarkets[market.market] = market;
-    perpUpdateProfit(market.market);
-  }
-
-  function perpUpdateProfit(address market) public {
-    PerpMarket storage m = perpMarkets[market];
-    IPerpMarket.MarketProps memory mprops = perpGetMarket(market);
-    address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
-    uint[3] memory prices =
-      [assetPrice(mprops.indexToken), assetPrice(mprops.longToken), assetPrice(mprops.shortToken)];
-    uint[3] memory perpPrices =
-      [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
-    m.marketPrice = perpGetMarketTokenPrice(tokens, perpPrices);
-    uint bal = IERC20(market).balanceOf(address(this));
-    m.profit = int(m.marketPrice * bal) - int(m.longAmount * prices[1] + m.shortAmount * prices[2]);
-  }
-
-  function toPerpPrice(uint price_) public pure returns (uint) {
-    return price_ * (10 ** 3); // perp price is 10 ** 30, we use 10 ** 27
-  }
-
-  function perpCancelDepositCallback(bytes32 key) external auth {}
-
-  function perpWithdrawCallback(bytes32, address market, uint amount0, uint amount1) external auth {
-    require(market != address(0), "Fund/invalid withdraw key");
-    PerpMarket storage pmarket = perpMarkets[market];
-    pmarket.longAmount -= amount0;
-    pmarket.shortAmount -= amount1;
-    perpUpdateProfit(market);
-  }
-
-  function perpCancelWithdrawCallback(bytes32 key) external auth {}
-
-  function perpDeposit(
-    address market,
-    address long,
-    address short,
-    uint longAmount,
-    uint shortAmount,
-    uint execFee
-  ) external payable auth nonReentrant returns (bytes32 key) {
-    perpExRouter.sendTokens(long, perpDepositVault, longAmount);
-    perpExRouter.sendTokens(short, perpDepositVault, shortAmount);
-    IPerpExRouter.CreateDepositParams memory params = IPerpExRouter.CreateDepositParams({
-      receiver: address(this),
-      callbackContract: perpCallback,
-      uiFeeReceiver: address(this),
-      market: market,
-      initialLongToken: long,
-      initialShortToken: short,
-      longTokenSwapPath: new address[](0),
-      shortTokenSwapPath: new address[](0),
-      minMarketTokens: 0,
-      shouldUnwrapNativeToken: true,
-      executionFee: execFee,
-      callbackGasLimit: 0
-    });
-
-    key = perpExRouter.createDeposit(params);
-  }
-
-  function perpWithdraw(address market, uint longAmount, uint shortAmount, uint execFee)
-    external
-    payable
-    auth
-    nonReentrant
-    returns (bytes32 key)
-  {
-    IPerpExRouter.CreateWithdrawalParams memory params = IPerpExRouter.CreateWithdrawalParams({
-      receiver: address(this),
-      callbackContract: perpCallback,
-      uiFeeReceiver: address(this),
-      market: market,
-      longTokenSwapPath: new address[](0),
-      shortTokenSwapPath: new address[](0),
-      minLongTokenAmount: longAmount,
-      minShortTokenAmount: shortAmount,
-      shouldUnwrapNativeToken: false,
-      executionFee: execFee,
-      callbackGasLimit: 0
-    });
-
-    key = perpExRouter.createWithdrawal{value: execFee}(params);
-  }
-
-  function perpOrder(BaseOrderUtils.CreateOrderParams calldata params)
-    external
-    payable
-    auth
-    nonReentrant
-    returns (bytes32)
-  {
-    return perpExRouter.createOrder{value: params.numbers.executionFee}(params);
-  }
-
-  function perpUpdateOrder(
-    bytes32 key,
-    uint sizeDeltaUsd,
-    uint acceptablePrice,
-    uint triggerPrice,
-    uint minOutputAmount
-  ) external payable auth nonReentrant {
-    perpExRouter.updateOrder(key, sizeDeltaUsd, acceptablePrice, triggerPrice, minOutputAmount);
-  }
-
-  function perpCancelOrder(bytes32 key) external auth nonReentrant {
-    perpExRouter.cancelOrder(key);
-  }
-
-  function perpCancelDeposit(bytes32 key) external auth nonReentrant {
-    perpExRouter.cancelDeposit(key);
-  }
-
-  function perpCancelWithdrawal(bytes32 key) external auth nonReentrant {
-    perpExRouter.cancelWithdrawal(key);
-  }
-
-  function perpBalance(address asset) public view returns (uint) {
-    uint bal = 0;
-    for (uint i = 0; i < perpMarketList.length; ++i) {
-      address mt = perpMarketList[i];
-      PerpMarket memory m = perpMarkets[mt];
-      if (m.long == asset) {
-        bal += m.longAmount;
-      } else if (m.short == asset) {
-        bal += m.shortAmount;
-      }
-    }
-    return bal;
-  }
-
-  function perpValue() public view returns (uint) {
-    uint v = 0;
-    uint len = perpMarketList.length;
-    for (uint i = 0; i < len; ++i) {
-      address mt = perpMarketList[i];
-      IPerpMarket.MarketProps memory mprops = perpGetMarket(mt);
-      address[3] memory tokens = [mprops.indexToken, mprops.longToken, mprops.shortToken];
-      uint[3] memory prices =
-        [assetPrice(mprops.indexToken), assetPrice(mprops.longToken), assetPrice(mprops.shortToken)];
-      uint[3] memory perpPrices =
-        [toPerpPrice(prices[0]), toPerpPrice(prices[1]), toPerpPrice(prices[2])];
-      uint mtPrice = perpGetMarketTokenPrice(tokens, perpPrices);
-      v += mtPrice * IERC20(mt).balanceOf(address(this));
-    }
+    v += perpRouter.perpValue();
     return v;
   }
 
@@ -557,5 +332,24 @@ contract Fund is Auth, ERC20, ReentrancyGuard, Initializable {
       v += assetPrice(ass) * lendBalance(ass);
     }
     return v;
+  }
+
+  function perpDeposit(
+    address market,
+    address long,
+    address short,
+    uint longAmount,
+    uint shortAmount,
+    uint execFee
+  ) external auth returns (bytes32 key) {
+    return perpRouter.perpDeposit(market, long, short, longAmount, shortAmount, execFee);
+  }
+
+  function perpWithdraw(address market, uint longAmount, uint shortAmount, uint execFee)
+    external
+    auth
+    returns (bytes32 key)
+  {
+    return perpRouter.perpWithdraw(market, longAmount, shortAmount, execFee);
   }
 }
